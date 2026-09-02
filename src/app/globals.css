@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* 註：此處原本定義了 --foreground-rgb / --accent / --accent-rgb /
+   --surface-dark / --panel-dark 五個變數，但全專案零引用，且其中
+   --accent (#ff3e6c 粉) 與實際主色 (tailwind.config.ts 的 accent
+   #00B4D8 青，使用逾 200 處) 衝突，容易誤導後續維護，故移除。 */
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  color: #1f2937;
+}
+
+/* 站台 forcedTheme='dark'，只保留深色底。淺色漸層已移除以免誤導維護。 */
+html body,
+html.dark body {
+  background-color: #050505;
+  color: #f4f4f5;
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-position: center top;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 229, 255, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 229, 255, 0.6);
+  box-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
+}
+
+.video-card-hover {
+  transition: transform 0.3s ease;
+}
+.video-card-hover:hover {
+  transform: scale(1.02);
+}
+
+.gradient-overlay {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.8) 100%
+  );
+}
+
+@media (max-width: 767px) {
+  html,
+  body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Glassmorphism */
+.glass-panel {
+  @apply bg-zinc-900/50 backdrop-blur-md;
+}
+html:not(.dark) .glass-panel {
+  @apply bg-zinc-900/50 backdrop-blur-md;
+}
+html.dark .glass-panel {
+  @apply bg-zinc-900/50 backdrop-blur-md;
+}
+
+/* Focus glow card */
+.focus-glow-card {
+  @apply transition-transform duration-300;
+}
+.focus-glow-card:hover,
+.focus-glow-card:focus {
+  transform: scale(1.02);
+  border-color: #00e5ff;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.06);
+}
+.focus-glow-card:focus-visible {
+  transform: scale(1.02);
+  border-color: #ff3e6c;
+  box-shadow: 0 0 20px rgba(255, 62, 108, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+/* Glow accent border for active elements */
+.glow-border {
+  border-color: #ff3e6c;
+  box-shadow: 0 0 12px rgba(255, 62, 108, 0.3);
+}
+
+/* Glow progress bar */
+.glow-bar {
+  background: #ff3e6c;
+  box-shadow: 0 0 8px #ff3e6c;
+}
+
+/* Vertical poster card (v1.3.0 continue watching) */
+.vertical-card-container {
+  position: relative;
+  z-index: 10;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.vertical-card-container:hover,
+.vertical-card-container:focus-visible {
+  transform: scale(1.02);
+  z-index: 50;
+}
+.vertical-card-container:hover .visual-box,
+.vertical-card-container:focus-visible .visual-box {
+  border-color: #ff3e6c;
+  box-shadow: 0 0 18px rgba(255, 62, 108, 0.32);
+}
+
+@supports (padding: max(0px)) {
+  .pwa-safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* View Transitions */
+@keyframes slide-from-top {
+  from {
+    clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+  }
+  to {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+@keyframes slide-from-bottom {
+  from {
+    clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
+  }
+  to {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.8s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+::view-transition-old(root) {
+  animation: none;
+}
+html.dark::view-transition-new(root) {
+  animation-name: slide-from-top;
+}
+html:not(.dark)::view-transition-new(root) {
+  animation-name: slide-from-bottom;
+}
+
+div[data-media-provider] video {
+  height: 100%;
+  object-fit: contain;
+}
+
+.art-poster {
+  background-size: contain !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-color: #000 !important;
+}
+
+@media (max-width: 768px) {
+  .art-control-pip {
+    display: none !important;
+  }
+  .art-control-fullscreenWeb {
+    display: none !important;
+  }
+  .art-control-volume {
+    display: none !important;
+  }
+}
+
+/* 骨架屏閃爍動畫（ImagePlaceholder 使用；React 19 下不可用行內 <style>） */
+@keyframes skeleton-shine {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shine {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.5s infinite;
+}
+
+.dark .skeleton-shine {
+  background: linear-gradient(90deg, #2d2d2d 25%, #3d3d3d 50%, #2d2d2d 75%);
+  background-size: 200% 100%;
+}
