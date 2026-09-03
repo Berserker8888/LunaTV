@@ -5,7 +5,11 @@ import {
   toSearchSimplified,
 } from './chinese';
 import { convertTaiwanToMainland } from './opencc-mainland';
-import { getRegionalMainlandTitles } from './regional-title-aliases';
+import {
+  getRegionalMainlandTitles,
+  getRuntimeCustomAliases,
+  type RegionalTitleAlias,
+} from './regional-title-aliases';
 import { extractSeason } from './titleParser';
 
 const CJK_PATTERN = /[\u3400-\u9fff]/;
@@ -51,7 +55,10 @@ function prepareMainlandSourceQuery(query: string): string {
  * The exact simplified-Chinese query always runs first. Broader generated
  * variants are only fallbacks and never include Japanese or English titles.
  */
-export function getMainlandSearchQueries(query: string): string[] {
+export function getMainlandSearchQueries(
+  query: string,
+  customAliases: RegionalTitleAlias[] = getRuntimeCustomAliases()
+): string[] {
   const prepared = prepareMainlandSourceQuery(query);
   const exact = normalizeMainlandQuery(prepared, true);
   const exactOk = isMainlandQueryable(exact);
@@ -59,8 +66,8 @@ export function getMainlandSearchQueries(query: string): string[] {
   const season = extractSeason(query);
   const regionalAliases = Array.from(
     new Set([
-      ...getRegionalMainlandTitles(query),
-      ...getRegionalMainlandTitles(prepared),
+      ...getRegionalMainlandTitles(query, customAliases),
+      ...getRegionalMainlandTitles(prepared, customAliases),
     ])
   )
     .map((alias) => normalizeMainlandQuery(alias, true))

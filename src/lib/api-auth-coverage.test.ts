@@ -143,6 +143,7 @@ const MUTATING_SAME_SITE_POSTS = [
   'searchhistory/route.ts',
   'skipconfigs/route.ts',
   'history/delete/route.ts',
+  'admin/title-aliases/route.ts',
 ];
 
 const EXPECTED_PROXY_EXCLUSIONS = [

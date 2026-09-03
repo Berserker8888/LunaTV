@@ -4,6 +4,11 @@ import { db } from '@/lib/db';
 
 import { AdminConfig } from './admin.types';
 import { toDisplayLanguage } from './chinese';
+import {
+  MAX_TITLE_ALIASES,
+  sanitizeTitleAlias,
+  setCachedCustomTitleAliases,
+} from './regional-title-aliases';
 import { DEFAULT_SITE_NAME, isLegacyDefaultSiteName } from './site-defaults';
 import { getServerStorageType } from './storage-runtime';
 import { fetchSafeRemoteUrl, readResponseTextWithLimit } from './url-safety';
@@ -379,6 +384,7 @@ async function getInitConfig(
     SourceConfig: [],
     CustomCategories: [],
     LiveConfig: [],
+    TitleAliases: [],
   };
 
   // 補充使用者資訊
@@ -664,6 +670,18 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
     adminConfig.LiveConfig = [];
   }
+  if (!Array.isArray(adminConfig.TitleAliases)) {
+    adminConfig.TitleAliases = [];
+  } else {
+    const seen = new Set<string>();
+    adminConfig.TitleAliases = adminConfig.TitleAliases.flatMap((raw) => {
+      const alias = sanitizeTitleAlias(raw);
+      if (!alias || seen.has(alias.tw)) return [];
+      seen.add(alias.tw);
+      return [alias];
+    }).slice(0, MAX_TITLE_ALIASES);
+  }
+  setCachedCustomTitleAliases(adminConfig.TitleAliases);
 
   adminConfig.UserConfig.Users = (
     adminConfig.UserConfig.Users as unknown[]
@@ -984,4 +1002,5 @@ export async function getAvailableApiSites(user?: string): Promise<ApiSite[]> {
 export async function setCachedConfig(config: AdminConfig) {
   cachedConfig = config;
   cachedConfigTimestamp = Date.now();
+  setCachedCustomTitleAliases(config.TitleAliases);
 }

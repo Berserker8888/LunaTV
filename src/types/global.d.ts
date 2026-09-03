@@ -25,6 +25,7 @@ declare global {
       CUSTOM_CATEGORIES?: any;
       FLUID_SEARCH?: boolean;
       ENABLE_WEB_LIVE?: boolean;
+      TITLE_ALIASES?: Array<{ tw: string; cn: string }>;
     };
 
     // Safari WebKit 特有 API，play 頁面用 typeof 做特徵偵測。

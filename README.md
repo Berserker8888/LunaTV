@@ -4,7 +4,7 @@
   <h1>LunaTV</h1>
   <p><strong>為繁體中文使用者優化的自架影音聚合平台</strong></p>
 
-![Version](https://img.shields.io/badge/Version-3.5.2-blue)
+![Version](https://img.shields.io/badge/Version-3.5.3-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)
 ![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ed?logo=docker)
@@ -62,7 +62,7 @@
 
 ## 部署
 
-映像：`ghcr.io/berserker8888/lunatv:latest`（也可改 `3.5.2` 等版本 tag）  
+映像：`ghcr.io/berserker8888/lunatv:latest`（也可改版本 tag）  
 架構：amd64／arm64。
 
 ### 選哪一種
@@ -193,7 +193,7 @@ docker compose up -d
 2. 打開 **管理面板 → 影片來源**，新增蘋果 CMS 風格 API（或貼設定檔／訂閱網址）
 3. 跑 **三級檢測**：至少要「可搜」，理想是「可搜／可解／可播」
 4. 回首頁或搜尋頁，搜一部你知道源站有的片子並播放
-5. （可選）健康頁看儲存、cron、熔斷與最近檢測
+5. （可選）健康頁看儲存、cron、熔斷與最近檢測。魔戒、怕痛的我、天能等常見台譯已內建；冷門片可在站點設定補「台灣片名 → 陸源片名」，或貼 JSON 批次匯入
 
 登入後若進警告頁：`PASSWORD` 沒注入，或用了 `admin`／`123456` 這類弱密碼。
 
@@ -305,6 +305,9 @@ NEXT_PUBLIC_STORAGE_TYPE=localstorage
 
 **部署後什麼都沒有？**  
 正常。到管理面板自己加源。
+
+**搜台灣片名找不到？**  
+先試原名。常見台譯已內建對照（如魔戒→指环王、怕痛的我→因为太怕痛就全点防御力了）。仍沒有可在管理面板 → 站點設定補一筆，或貼上 JSON 批次匯入。
 
 **搜得到但播不了？**  
 跑三級檢測。若「搜✓ 解✓ 播✗」，多半是該源 m3u8／CDN，換源或稍後再試。直連 CORS 失敗時會自動改走站內代理再播一次。

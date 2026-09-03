@@ -46,6 +46,21 @@ describe('陸源譯名橋接：查詢計畫 × 前端過濾', () => {
       plannedMustInclude: '间谍过家家',
     },
     {
+      userQuery: '魔戒',
+      cmsTitle: '指环王：护戒使者',
+      plannedMustInclude: '指环王',
+    },
+    {
+      userQuery: '怕痛的我',
+      cmsTitle: '因为太怕痛就全点防御力了',
+      plannedMustInclude: '因为太怕痛就全点防御力了',
+    },
+    {
+      userQuery: '屍速列車',
+      cmsTitle: '釜山行',
+      plannedMustInclude: '釜山行',
+    },
+    {
       userQuery: '葬送的芙莉蓮',
       cmsTitle: '葬送的芙莉莲',
       plannedMustInclude: '葬送的芙莉莲',

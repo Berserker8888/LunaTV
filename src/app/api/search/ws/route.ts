@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   if (config.SiteConfig.PreferValidatedSourceOrder) {
     apiSites = orderSourcesByValidation(apiSites);
   }
-  const searchVariants = getMainlandSearchQueries(query);
+  const searchVariants = getMainlandSearchQueries(query, config.TitleAliases);
   const cleanedOriginal = searchVariants[0] || cleanQueryForApi(query);
   let streamClosed = false;
   const searchAbortController = new AbortController();

@@ -6,6 +6,16 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.5.3',
+    date: '2026-09-03',
+    content: `
+- 搜尋：內建台譯對照補上魔戒、怕痛的我、天能、出神入化、屍速列車等常見大 IP，升級即可搜。
+- 管理：站點設定可自訂台灣片名 → 陸源片名（優先於內建對照，保留季數與副標）。
+- 管理：片名別名支援貼上 JSON 批次追加或覆蓋，不必一筆一筆手打。
+    `.trim(),
+  },
+
+  {
     version: 'v3.5.2',
     date: '2026-09-03',
     content: `

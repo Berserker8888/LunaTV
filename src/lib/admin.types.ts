@@ -1,3 +1,8 @@
+export interface TitleAlias {
+  tw: string;
+  cn: string;
+}
+
 export interface AdminConfig {
   ConfigSubscription: {
     URL: string;
@@ -5,6 +10,8 @@ export interface AdminConfig {
     LastCheck: string;
   };
   ConfigFile: string;
+  /** 站長自訂台灣片名 → 陸源片名；搜尋時優先於內建精選表 */
+  TitleAliases?: TitleAlias[];
   SiteConfig: {
     SiteName: string;
     Announcement: string;

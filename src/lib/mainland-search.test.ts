@@ -139,4 +139,18 @@ describe('查詢計畫 golden test', () => {
     expect(getMainlandSearchQueries('進擊的巨人')).toContain('巨人');
     expect(getMainlandSearchQueries('海賊王')).toContain('航海王');
   });
+
+  it('uses custom aliases before builtin ones and keeps the season', () => {
+    const queries = getMainlandSearchQueries('魔戒 第二季', [
+      { tw: '魔戒', cn: '指环王' },
+    ]);
+    expect(queries[0]).toBe('指环王 第二季');
+  });
+
+  it('uses builtin 魔戒／怕痛的我 without any custom aliases', () => {
+    expect(getMainlandSearchQueries('魔戒')[0]).toBe('指环王');
+    expect(getMainlandSearchQueries('怕痛的我')[0]).toBe(
+      '因为太怕痛就全点防御力了'
+    );
+  });
 });

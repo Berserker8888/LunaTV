@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
 
   const directMode = mode === 'direct';
   const searchVariants = directMode
-    ? getMainlandSearchQueries(query).slice(0, 1)
-    : getMainlandSearchQueries(query);
+    ? getMainlandSearchQueries(query, config.TitleAliases).slice(0, 1)
+    : getMainlandSearchQueries(query, config.TitleAliases);
   const cleanedOriginal = searchVariants[0] || cleanQueryForApi(query);
 
   try {

@@ -11,6 +11,7 @@ import {
 } from './AlertModal';
 import { buttonStyles } from './buttonStyles';
 import { useLoadingState } from './Loading';
+import { TitleAliasesCard } from './TitleAliasesCard';
 import { SiteConfig } from './types';
 
 // 將後端 SiteConfig 正規化為表單草稿（補預設值、相容舊代理型別）
@@ -644,6 +645,11 @@ export const SiteConfigComponent = ({
           {isLoading('saveSiteConfig') ? '儲存中…' : '儲存'}
         </button>
       </div>
+
+      <TitleAliasesCard
+        aliases={config?.TitleAliases || []}
+        refreshConfig={refreshConfig}
+      />
 
       {/* 通用彈窗組件 */}
       <AlertModal

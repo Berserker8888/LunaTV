@@ -104,6 +104,7 @@ export default async function RootLayout({
     process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
   let enableWebLive = false;
+  let titleAliases = [] as { tw: string; cn: string }[];
   let customCategories = [] as {
     name: string;
     type: 'movie' | 'tv';
@@ -128,6 +129,7 @@ export default async function RootLayout({
     }));
     fluidSearch = config.SiteConfig.FluidSearch;
     enableWebLive = config.SiteConfig.EnableWebLive ?? false;
+    titleAliases = config.TitleAliases || [];
   }
 
   // 將運行時設定注入到全局 window 對象，供客戶端在運行時讀取
@@ -141,6 +143,7 @@ export default async function RootLayout({
     CUSTOM_CATEGORIES: customCategories,
     FLUID_SEARCH: fluidSearch,
     ENABLE_WEB_LIVE: enableWebLive,
+    TITLE_ALIASES: titleAliases,
   };
 
   return (
