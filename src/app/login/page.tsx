@@ -110,11 +110,17 @@ function LoginPageClient() {
       if (res.ok) {
         const redirect = getSafeLoginRedirect(searchParams.get('redirect'));
         router.replace(redirect);
-      } else if (res.status === 401) {
-        setError('密碼錯誤');
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? '伺服器錯誤');
+        setError(
+          typeof data.error === 'string' && data.error
+            ? data.error
+            : res.status === 401
+              ? '使用者名或密碼錯誤'
+              : res.status === 429
+                ? '登入嘗試過多，請稍後再試'
+                : '伺服器錯誤'
+        );
       }
     } catch {
       setError('網路錯誤，請稍後重試');

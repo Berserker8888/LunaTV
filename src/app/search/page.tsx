@@ -36,6 +36,13 @@ import VirtualGrid from '@/components/VirtualGrid';
 
 import { sortSearchItems } from './search-sort';
 
+const DEFAULT_SEARCH_FILTER = {
+  source: 'all',
+  title: 'all',
+  year: 'all',
+  yearOrder: 'none' as const,
+};
+
 function SearchPageClient() {
   const [showBackToTop, setShowBackToTop] = useState(false);
   const showBackToTopRef = useRef(false);
@@ -268,12 +275,7 @@ function SearchPageClient() {
     title: string;
     year: string;
     yearOrder: 'none' | 'asc' | 'desc';
-  }>({
-    source: 'all',
-    title: 'all',
-    year: 'all',
-    yearOrder: 'none',
-  });
+  }>(DEFAULT_SEARCH_FILTER);
   const filterAllRef = useRef(filterAll);
 
   const [filterAgg, setFilterAgg] = useState<{
@@ -281,12 +283,7 @@ function SearchPageClient() {
     title: string;
     year: string;
     yearOrder: 'none' | 'asc' | 'desc';
-  }>({
-    source: 'all',
-    title: 'all',
-    year: 'all',
-    yearOrder: 'none',
-  });
+  }>(DEFAULT_SEARCH_FILTER);
   const filterAggRef = useRef(filterAgg);
 
   const getDefaultAggregate = () => {
@@ -500,7 +497,7 @@ function SearchPageClient() {
     }
 
     const handleScroll = () => {
-      const shouldShow = (document.body.scrollTop || 0) > 300;
+      const shouldShow = window.scrollY > 300;
       if (showBackToTopRef.current !== shouldShow) {
         showBackToTopRef.current = shouldShow;
         setShowBackToTop(shouldShow);
@@ -508,10 +505,10 @@ function SearchPageClient() {
     };
 
     handleScroll();
-    document.body.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
-      document.body.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
@@ -541,6 +538,8 @@ function SearchPageClient() {
       groupStatsRef.current.clear();
       setSearchResults([]);
       setResolvedSearchQuery('');
+      setFilterAll(DEFAULT_SEARCH_FILTER);
+      setFilterAgg(DEFAULT_SEARCH_FILTER);
       setTotalSources(0);
       setCompletedSources(0);
       receivedCountRef.current = 0;
@@ -768,17 +767,11 @@ function SearchPageClient() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchQuery(value);
-    if (value.trim()) {
-      setShowSuggestions(true);
-    } else {
-      setShowSuggestions(false);
-    }
+    setShowSuggestions(true);
   };
 
   const handleInputFocus = () => {
-    if (searchQuery.trim()) {
-      setShowSuggestions(true);
-    }
+    setShowSuggestions(true);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -812,13 +805,20 @@ function SearchPageClient() {
   };
 
   const scrollToTop = () => {
-    try {
-      document.body.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      });
-    } catch (error) {
-      document.body.scrollTop = 0;
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
+  const displayedResultCount =
+    viewMode === 'agg' ? filteredAggResults.length : filteredAllResults.length;
+
+  const clearActiveFilters = () => {
+    if (viewMode === 'agg') {
+      setFilterAgg(DEFAULT_SEARCH_FILTER);
+    } else {
+      setFilterAll(DEFAULT_SEARCH_FILTER);
     }
   };
 
@@ -844,7 +844,7 @@ function SearchPageClient() {
                   type='button'
                   onClick={() => {
                     setSearchQuery('');
-                    setShowSuggestions(false);
+                    setShowSuggestions(true);
                     document.getElementById('searchInput')?.focus();
                   }}
                   // 原本可點區域只有 20x20，對觸控過小；放大到 40x40 並讓
@@ -983,6 +983,8 @@ function SearchPageClient() {
                     <button
                       type='button'
                       title='網格視圖'
+                      aria-label='網格視圖'
+                      aria-pressed={layoutMode === 'grid'}
                       onClick={() => handleLayoutModeChange('grid')}
                       className={`p-1.5 rounded-lg transition-colors ${
                         layoutMode === 'grid'
@@ -995,6 +997,8 @@ function SearchPageClient() {
                     <button
                       type='button'
                       title='列表視圖'
+                      aria-label='列表視圖'
+                      aria-pressed={layoutMode === 'list'}
                       onClick={() => handleLayoutModeChange('list')}
                       className={`p-1.5 rounded-lg transition-colors ${
                         layoutMode === 'list'
@@ -1027,12 +1031,10 @@ function SearchPageClient() {
                           <span className='mx-1 font-medium text-zinc-300'>
                             「{triedMainlandLabel}」
                           </span>
-                          搜過。可以點下方用該名稱再搜、試更簡短關鍵字，或關閉「聚合」。
+                          搜過。可以點下方用該名稱再搜，或試更簡短的關鍵字。
                         </>
                       ) : (
-                        <>
-                          可以試試更簡短的關鍵字，或關閉上方的「聚合」以顯示各來源的個別結果。
-                        </>
+                        <>可以試試更簡短的關鍵字。</>
                       )}
                     </p>
                     <div className='mt-2 flex flex-wrap items-center justify-center gap-2'>
@@ -1047,24 +1049,36 @@ function SearchPageClient() {
                           用「{triedMainlandLabel}」再搜一次
                         </button>
                       )}
-                      {viewMode === 'agg' && (
-                        <button
-                          type='button'
-                          onClick={() => setViewMode('all')}
-                          className='rounded-full border border-white/15 bg-zinc-900/40 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800/80'
-                        >
-                          關閉聚合再試一次
-                        </button>
-                      )}
                     </div>
                   </div>
                 )
+              ) : displayedResultCount === 0 ? (
+                <div className='flex flex-col items-center justify-center gap-3 px-6 py-16 text-center'>
+                  <p className='text-base font-medium text-zinc-100'>
+                    沒有符合目前篩選條件的結果
+                  </p>
+                  <p className='max-w-sm text-sm leading-relaxed text-zinc-500'>
+                    可以清掉來源、標題或年份條件，再看一次完整清單。
+                  </p>
+                  <button
+                    type='button'
+                    onClick={clearActiveFilters}
+                    className='rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent/15'
+                  >
+                    清除篩選
+                  </button>
+                </div>
               ) : (
                 <div key={`search-results-${viewMode}-${layoutMode}`}>
                   {layoutMode === 'list' ? (
-                    <div className='flex flex-col gap-2.5 pb-16'>
-                      {viewMode === 'agg'
-                        ? filteredAggResults.map(([mapKey, group]) => {
+                    viewMode === 'agg' ? (
+                      <div className='pb-16'>
+                        <VirtualGrid
+                          items={filteredAggResults}
+                          className='grid-cols-1'
+                          rowGapClass='pb-2.5'
+                          estimateRowHeight={88}
+                          renderItem={([mapKey, group]) => {
                             const title = group[0]?.title || '';
                             const poster = group[0]?.poster || '';
                             const year = group[0]?.year || 'unknown';
@@ -1157,8 +1171,17 @@ function SearchPageClient() {
                                 </div>
                               </div>
                             );
-                          })
-                        : filteredAllResults.map((item) => {
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className='pb-16'>
+                        <VirtualGrid
+                          items={filteredAllResults}
+                          className='grid-cols-1'
+                          rowGapClass='pb-2.5'
+                          estimateRowHeight={88}
+                          renderItem={(item) => {
                             const count = getResultEpisodeCount(item);
                             return (
                               <div
@@ -1249,8 +1272,10 @@ function SearchPageClient() {
                                 </div>
                               </div>
                             );
-                          })}
-                    </div>
+                          }}
+                        />
+                      </div>
+                    )
                   ) : viewMode === 'agg' ? (
                     <VirtualGrid
                       items={filteredAggResults}
@@ -1368,6 +1393,7 @@ function SearchPageClient() {
         </div>
       </div>
       <button
+        type='button'
         onClick={scrollToTop}
         className={`fixed bottom-20 md:bottom-6 right-6 z-[500] w-12 h-12 bg-accent/90 hover:bg-accent text-white rounded-full shadow-lg backdrop-blur-sm transition-all duration-300 ease-in-out flex items-center justify-center group ${
           showBackToTop

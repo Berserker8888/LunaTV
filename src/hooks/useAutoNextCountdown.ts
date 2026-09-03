@@ -1,4 +1,10 @@
-import { MutableRefObject, useCallback, useRef, useState } from 'react';
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { SearchResult } from '@/lib/types';
 
@@ -41,7 +47,12 @@ export function useAutoNextCountdown({
     }
   }, [currentEpisodeIndexRef, detailRef, setCurrentEpisodeIndex]);
 
+  useEffect(() => {
+    return () => cancelAutoNextCountdown(false);
+  }, [cancelAutoNextCountdown]);
+
   const startAutoNextCountdown = useCallback(() => {
+    cancelAutoNextCountdown(false);
     autoNextBusyRef.current = true;
     let remaining = 5;
     setAutoNextCountdown(remaining);

@@ -1,7 +1,9 @@
-function isTrustedProxy(env: {
-  TRUST_PROXY?: string;
-  [key: string]: string | undefined;
-}): boolean {
+export function isTrustedProxy(
+  env: {
+    TRUST_PROXY?: string;
+    [key: string]: string | undefined;
+  } = process.env
+): boolean {
   const normalized = env.TRUST_PROXY?.trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
 }
@@ -52,4 +54,14 @@ export function rejectCrossSiteRequest(request: Request): Response | null {
     { error: 'Forbidden' },
     { status: 403, headers: { 'Cache-Control': 'no-store' } }
   );
+}
+
+/**
+ * sendBeacon 關頁存檔常不帶 Origin。沒有 Origin 時放行，有 Origin 才擋跨站。
+ */
+export function rejectCrossSiteRequestIfOrigin(
+  request: Request
+): Response | null {
+  if (!request.headers.get('origin')) return null;
+  return rejectCrossSiteRequest(request);
 }

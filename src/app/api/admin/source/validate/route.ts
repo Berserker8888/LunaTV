@@ -24,7 +24,7 @@ function sseData(payload: unknown): string {
 
 export async function GET(request: NextRequest) {
   if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: '權限不足' }, { status: 401 });
+    return NextResponse.json({ error: '權限不足' }, { status: 403 });
   }
   // 限「建立 SSE 連線」次數，不是每個事件
   const limited = await enforceRateLimit(request, {

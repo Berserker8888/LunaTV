@@ -32,11 +32,22 @@ const APPLE_SPLASH_SCREENS = [
   { w: 1024, h: 1366, dpr: 2, src: '/splash/splash-2048x2732.png' },
 ];
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 const notoSansTC = Noto_Sans_TC({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '700'],
+  weight: ['400', '500', '700'],
   variable: '--font-noto-sans-tc',
+  display: 'swap',
+  fallback: [
+    'Microsoft JhengHei',
+    'PingFang TC',
+    'Noto Sans CJK TC',
+    'sans-serif',
+  ],
 });
 export const dynamic = 'force-dynamic';
 
@@ -161,7 +172,7 @@ export default async function RootLayout({
       </head>
       <body
         translate='no'
-        className={`${inter.className} ${notoSansTC.variable} notranslate font-primary min-h-screen bg-deep text-zinc-200`}
+        className={`${inter.variable} ${notoSansTC.variable} notranslate font-primary min-h-screen bg-deep text-zinc-200`}
       >
         <ThemeProvider disableTransitionOnChange>
           <ToastProvider>

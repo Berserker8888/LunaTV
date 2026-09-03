@@ -77,7 +77,12 @@ exports[`查詢計畫 golden test 季數＋別名表：間諜家家酒 第二季
 ]
 `;
 
-exports[`查詢計畫 golden test 日文假名（不送陸源）：進撃の巨人 1`] = `[]`;
+exports[`查詢計畫 golden test 漢字夾の轉成中文送陸源：進撃の巨人 1`] = `
+[
+  "进击的巨人",
+  "巨人",
+]
+`;
 
 exports[`查詢計畫 golden test 純英文（不送陸源）：Breaking Bad 1`] = `[]`;
 

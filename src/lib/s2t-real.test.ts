@@ -52,4 +52,8 @@ describe('繁簡轉換（真實函式庫，未套 mock）', () => {
   it('已知不轉換：迴（由 toSearchSimplified 另行補上）', () => {
     expect(convertT2S('輪迴')).toBe('轮迴');
   });
+
+  it('已知不轉換：日文撃（由 toSearchSimplified 另行補上為击）', () => {
+    expect(convertT2S('進撃')).toBe('进撃');
+  });
 });

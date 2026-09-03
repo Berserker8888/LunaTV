@@ -58,8 +58,11 @@ describe('inferSeasonFromSubtitle', () => {
     expect(inferSeasonFromSubtitle('無限列車')).toBe(1);
   });
 
-  test('handles case insensitive English subtitle like Final Season', () => {
-    expect(inferSeasonFromSubtitle('Final Season')).toBe(4);
+  test('does not treat 最終季／Final Season as a hardcoded season 4', () => {
+    expect(inferSeasonFromSubtitle('Final Season')).toBeNull();
+    expect(inferSeasonFromSubtitle('最終季')).toBeNull();
+    expect(inferSeasonFromSubtitle('终章')).toBeNull();
+    expect(extractSeason('路人超能100 最終季')).toBeNull();
   });
 
   test('returns null for empty string', () => {

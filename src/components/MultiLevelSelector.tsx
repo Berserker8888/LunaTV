@@ -475,11 +475,10 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
       }
     };
 
-    // 監聽 body 滾動事件，因為該項目的滾動容器是 document.body
-    document.body.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
     return () => {
-      document.body.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
   }, [activeCategory]);

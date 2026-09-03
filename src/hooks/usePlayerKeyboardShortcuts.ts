@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 
+import { clampPlayerSeek } from '@/lib/play-page-utils';
 import { SearchResult } from '@/lib/types';
 
 interface PlayerKeyboardShortcutsOptions {
@@ -10,6 +11,7 @@ interface PlayerKeyboardShortcutsOptions {
   onPreviousEpisode: () => void;
   onNextEpisode: () => void;
   onToggleShortcutsHelp: () => void;
+  onEscape?: () => void;
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
@@ -36,6 +38,7 @@ export function usePlayerKeyboardShortcuts(
         onPreviousEpisode,
         onNextEpisode,
         onToggleShortcutsHelp,
+        onEscape,
       } = optionsRef.current;
 
       // 忽略輸入框，以及按鈕／連結上的 Space、方向鍵（讓焦點操作自己生效）
@@ -75,19 +78,24 @@ export function usePlayerKeyboardShortcuts(
 
       // 左箭頭 = 快退
       if (!e.altKey && e.key === 'ArrowLeft') {
-        if (artPlayerRef.current && artPlayerRef.current.currentTime > 5) {
-          artPlayerRef.current.currentTime -= 10;
+        if (artPlayerRef.current) {
+          artPlayerRef.current.currentTime = clampPlayerSeek(
+            artPlayerRef.current.currentTime,
+            artPlayerRef.current.duration,
+            -10
+          );
           e.preventDefault();
         }
       }
 
       // 右箭頭 = 快進
       if (!e.altKey && e.key === 'ArrowRight') {
-        if (
-          artPlayerRef.current &&
-          artPlayerRef.current.currentTime < artPlayerRef.current.duration - 5
-        ) {
-          artPlayerRef.current.currentTime += 10;
+        if (artPlayerRef.current) {
+          artPlayerRef.current.currentTime = clampPlayerSeek(
+            artPlayerRef.current.currentTime,
+            artPlayerRef.current.duration,
+            10
+          );
           e.preventDefault();
         }
       }
@@ -185,6 +193,10 @@ export function usePlayerKeyboardShortcuts(
       if (e.key === '?' || e.key === 'h' || e.key === 'H') {
         onToggleShortcutsHelp();
         e.preventDefault();
+      }
+
+      if (e.key === 'Escape') {
+        onEscape?.();
       }
     };
 

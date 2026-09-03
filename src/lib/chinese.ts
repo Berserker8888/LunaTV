@@ -42,6 +42,15 @@ function normalizeFullwidthAlnum(text: string): string {
     .replace(/\u3000/g, ' ');
 }
 
+/**
+ * 只把夾在漢字中間的「の」當成助詞轉成「的」。
+ * 不碰 は／を／と：那些字常是假名單詞的一部分，
+ * 「はたらく細胞」若刪 は 會變成「たらく細胞」，「となりのトトロ」的 と 也不是「和」。
+ */
+export function convertJapaneseParticlesForSearch(text: string): string {
+  return text.replace(/(?<=[\u3400-\u9fff])の(?=[\u3400-\u9fff])/g, '的');
+}
+
 export function toSearchSimplified(text: string): string {
   // 這裡原本在轉換器之後逐字補了 36 個字（進→进、擊→击……），看起來像是
   // 不信任轉換器而逐一打補丁。以 38 個真實片名語料實測，其中 35 個轉換器
@@ -50,7 +59,12 @@ export function toSearchSimplified(text: string): string {
   // 迴／回 在繁體是兩個不同的字（輪迴、迴轉），簡體才合併為「回」，
   // 轉換器不動它是正確行為，故仍需補上——少了這個，「咒術迴戰」會轉成
   // 「咒术迴战」而搜不到任何陸源。此行為由 s2t-real.test.ts 看守。
-  return convertT2S(normalizeFullwidthAlnum(text)).replace(/迴/g, '回');
+  return (
+    convertT2S(normalizeFullwidthAlnum(text))
+      .replace(/迴/g, '回')
+      // 日文新字體「撃」不是台灣繁體「擊」，OpenCC 不會轉成陸源「击」
+      .replace(/撃/g, '击')
+  );
 }
 
 export function generateNumberVariant(query: string): string | null {
@@ -100,6 +114,12 @@ function generatePunctuationVariant(query: string): string | null {
   }
   if (query.includes('《') || query.includes('》')) {
     return query.replace(/[《》]/g, '');
+  }
+  if (/[×✕✖～~・·]/.test(query)) {
+    return query
+      .replace(/[×✕✖～~・·]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
   return null;
 }
@@ -258,7 +278,7 @@ function romanizeKana(text: string): string | null {
 }
 
 const SEARCH_SEPARATOR_PATTERN =
-  /[\s~～\-－—–・·,，.。:：!！?？《》「」『』【】（）()_、/\\|]+/g;
+  /[\s~～\-－—–・·,，.。:：!！?？《》「」『』【】（）()_、/\\|×✕✖☆★♪♥♡]+/g;
 const SEARCH_CJK_PATTERN = /[\u3400-\u9fff]/;
 const SEARCH_KANA_PATTERN = /[\u3040-\u30ff]/;
 
@@ -852,12 +872,12 @@ export function cleanQueryForApi(rawQuery: string): string {
     .replace(/\[[^\]]*\]/g, '')
     .trim();
 
-  // 2. 日文助詞轉換：將常見日文助詞轉為中文（讓「進擊の巨人」可搜到「進擊的巨人」）
+  // 2. 日文助詞：只轉漢字中間的「の」。裝飾符號改成空格，方便陸源 LIKE。
+  k = convertJapaneseParticlesForSearch(k);
   k = k
-    .replace(/の/g, '的')
-    .replace(/は/g, '')
-    .replace(/を/g, '')
-    .replace(/と/g, '和');
+    .replace(/[☆★♪♥♡※＊*×✕✖·・～~!！?？]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // 3. 移除結尾的常見干擾後綴（季、期、部、版等）
   k = k

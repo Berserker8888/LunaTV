@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   if (crossSite) return crossSite;
 
   if (!(await requireAdmin(request))) {
-    return NextResponse.json({ error: '權限不足' }, { status: 401 });
+    return NextResponse.json({ error: '權限不足' }, { status: 403 });
   }
 
   const body = (await readJsonObject<{ key?: unknown }>(request)) || {};

@@ -7,12 +7,15 @@ import {
   readJsonObject,
 } from '@/lib/api-input-validation';
 import { db } from '@/lib/db';
+import { rejectCrossSiteRequest } from '@/lib/same-site';
 import { normalizePlayRecordTitle } from '@/lib/string-utils';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
+    const crossSite = rejectCrossSiteRequest(req);
+    if (crossSite) return crossSite;
     const body = await readJsonObject(req);
     if (!body) {
       return NextResponse.json(

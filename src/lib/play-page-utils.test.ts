@@ -1,5 +1,6 @@
 import {
   calculateSourceScore,
+  clampPlayerSeek,
   EPISODE_DESCENDING_STORAGE_KEY,
   filterSourcesPreferHighQuality,
   filterTitleSafeCandidates,
@@ -28,6 +29,21 @@ import {
   selectSourceAfterSpeedTests,
   writeEpisodeDescendingPreference,
 } from './play-page-utils';
+
+describe('clampPlayerSeek', () => {
+  it('rewinds from the first few seconds instead of doing nothing', () => {
+    expect(clampPlayerSeek(3, 120, -10)).toBe(0);
+  });
+
+  it('forwards near the end instead of doing nothing', () => {
+    expect(clampPlayerSeek(118, 120, 10)).toBe(120);
+  });
+
+  it('keeps mid-video seeks unclamped', () => {
+    expect(clampPlayerSeek(40, 120, 10)).toBe(50);
+    expect(clampPlayerSeek(40, 120, -10)).toBe(30);
+  });
+});
 
 describe('mobile HLS buffers', () => {
   it('detects mobile user agents', () => {

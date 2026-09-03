@@ -151,10 +151,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(
-      {
-        error: 'Failed to fetch',
-        message: error instanceof Error ? error.message : String(error),
-      },
+      { error: 'Failed to fetch' },
       { status: controller.signal.aborted ? 504 : 500 }
     );
   } finally {

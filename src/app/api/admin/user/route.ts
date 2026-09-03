@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
             (u) => u.username === username
           );
           if (!userEntry || userEntry.role !== 'admin' || userEntry.banned) {
-            return NextResponse.json({ error: '權限不足' }, { status: 401 });
+            return NextResponse.json({ error: '權限不足' }, { status: 403 });
           }
           operatorRole = 'admin';
         }

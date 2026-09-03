@@ -1,3 +1,5 @@
+import { isTrustedProxy } from './same-site';
+
 export type CookieRequestLike = {
   headers: { get(name: string): string | null };
   nextUrl?: { protocol: string };
@@ -22,7 +24,11 @@ function parseBooleanEnv(value: string | undefined): boolean | null {
   return null;
 }
 
-function forwardedProto(request: CookieRequestLike): 'http' | 'https' | null {
+function forwardedProto(
+  request: CookieRequestLike,
+  env: EnvLike
+): 'http' | 'https' | null {
+  if (!isTrustedProxy(env)) return null;
   const forwarded = request.headers
     .get('x-forwarded-proto')
     ?.split(',')[0]
@@ -41,12 +47,14 @@ function requestProtocol(request: CookieRequestLike): 'http' | 'https' | null {
   return null;
 }
 
-function requestHost(request: CookieRequestLike): string {
-  const forwarded = request.headers
-    .get('x-forwarded-host')
-    ?.split(',')[0]
-    ?.trim();
-  if (forwarded) return forwarded.toLowerCase();
+function requestHost(request: CookieRequestLike, env: EnvLike): string {
+  if (isTrustedProxy(env)) {
+    const forwarded = request.headers
+      .get('x-forwarded-host')
+      ?.split(',')[0]
+      ?.trim();
+    if (forwarded) return forwarded.toLowerCase();
+  }
   const host = request.headers.get('host');
   if (host) return host.toLowerCase();
   if (request.url) {
@@ -61,7 +69,8 @@ function requestHost(request: CookieRequestLike): string {
 
 function siteBaseIsHttpsForRequest(
   siteBase: string | undefined,
-  request?: CookieRequestLike
+  request: CookieRequestLike | undefined,
+  env: EnvLike
 ): boolean {
   const value = siteBase?.trim();
   if (!value) return false;
@@ -69,7 +78,7 @@ function siteBaseIsHttpsForRequest(
     const parsed = new URL(value);
     if (parsed.protocol !== 'https:') return false;
     if (!request) return true;
-    const incomingHost = requestHost(request);
+    const incomingHost = requestHost(request, env);
     return incomingHost !== '' && incomingHost === parsed.host.toLowerCase();
   } catch {
     return false;
@@ -93,12 +102,12 @@ export function shouldUseSecureCookies(
   if (explicit !== null) return explicit;
 
   if (request) {
-    const forwarded = forwardedProto(request);
+    const forwarded = forwardedProto(request, env);
     if (forwarded) return forwarded === 'https';
     if (requestProtocol(request) === 'https') return true;
   }
 
-  return siteBaseIsHttpsForRequest(env.SITE_BASE, request);
+  return siteBaseIsHttpsForRequest(env.SITE_BASE, request, env);
 }
 
 export function getAuthCookieOptions(

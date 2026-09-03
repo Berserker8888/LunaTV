@@ -22,7 +22,23 @@ describe('mainland search query planner', () => {
     expect(queries.every((query) => /[\u3400-\u9fff]/.test(query))).toBe(true);
     expect(queries.length).toBeLessThanOrEqual(4);
     expect(getMainlandSearchQueries('Attack on Titan')).toEqual([]);
-    expect(getMainlandSearchQueries('進撃の巨人')).toEqual([]);
+    expect(
+      getMainlandSearchQueries('進撃の巨人').every(
+        (item) => /[\u3400-\u9fff]/.test(item) && !/[\u3040-\u30ff]/.test(item)
+      )
+    ).toBe(true);
+    expect(getMainlandSearchQueries('進撃の巨人')).toContain('进击的巨人');
+    expect(getMainlandSearchQueries('はたらく細胞')).toEqual([]);
+  });
+
+  it('splits anime subtitle dashes into a core title for CMS', () => {
+    const queries = getMainlandSearchQueries(
+      '輝夜姬想讓人告白～天才們的戀愛頭腦戰～'
+    );
+    expect(queries.some((item) => item.includes('辉夜姬想让人告白'))).toBe(
+      true
+    );
+    expect(queries.some((item) => item.includes('～'))).toBe(false);
   });
 
   it('keeps an explicit season in every generated query', () => {
@@ -76,7 +92,7 @@ describe('查詢計畫 golden test', () => {
     ['季數用阿拉伯數字', '某劇 第2季'],
     ['長片名＋季數', '石紀元 科學與未來 第三季'],
     ['純英文（不送陸源）', 'Breaking Bad'],
-    ['日文假名（不送陸源）', '進撃の巨人'],
+    ['漢字夾の轉成中文送陸源', '進撃の巨人'],
   ])('%s：%s', (_label, query) => {
     expect(getMainlandSearchQueries(query)).toMatchSnapshot();
   });

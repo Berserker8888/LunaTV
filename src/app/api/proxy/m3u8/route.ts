@@ -7,6 +7,7 @@ import {
   type ProxyKind,
   proxyKindQuery,
 } from '@/lib/proxy-access';
+import { resolvePublicProxyOrigin } from '@/lib/proxy-public-origin';
 import {
   fetchSafeRemoteUrl,
   readResponseTextWithLimit,
@@ -126,30 +127,7 @@ function rewriteM3U8Content(
   kind: ProxyKind,
   rememberHost: (fetchedUrl: string) => void
 ) {
-  const requestUrl = new URL(req.url);
-  const forwardedProtocol = req.headers
-    .get('x-forwarded-proto')
-    ?.split(',')[0]
-    .trim();
-  const referer = req.headers.get('referer');
-  let refererProtocol = '';
-  if (referer) {
-    try {
-      const refererUrl = new URL(referer);
-      refererProtocol = refererUrl.protocol.replace(':', '');
-    } catch (error) {
-      // ignore
-    }
-  }
-
-  const protocol =
-    forwardedProtocol === 'http' || forwardedProtocol === 'https'
-      ? forwardedProtocol
-      : refererProtocol || requestUrl.protocol.replace(':', '');
-  const host =
-    req.headers.get('x-forwarded-host')?.split(',')[0].trim() ||
-    req.headers.get('host') ||
-    requestUrl.host;
+  const { protocol, host } = resolvePublicProxyOrigin(req);
   const sourceParam =
     (source ? `&moontv-source=${encodeURIComponent(source)}` : '') +
     proxyKindQuery(kind);

@@ -448,6 +448,20 @@ export function getStableTitle(
   );
 }
 
+/** 快進／快退：夾在 [0, duration]，片頭片尾不再出現無效按鍵。 */
+export function clampPlayerSeek(
+  currentTime: number,
+  duration: number,
+  delta: number
+): number {
+  const time = Number.isFinite(currentTime) ? currentTime : 0;
+  const next = time + delta;
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return Math.max(0, next);
+  }
+  return Math.max(0, Math.min(duration, next));
+}
+
 export function formatPlayerTime(seconds: number): string {
   if (seconds === 0) return '00:00';
 

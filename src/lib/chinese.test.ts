@@ -157,4 +157,17 @@ describe('cleanQueryForApi', () => {
   it('沒有中繼資訊時維持原樣', () => {
     expect(cleanQueryForApi('進擊的巨人')).toBe('進擊的巨人');
   });
+
+  it('只轉漢字中間的の，不把假名單詞切碎', () => {
+    expect(cleanQueryForApi('進撃の巨人')).toBe('進撃的巨人');
+    expect(cleanQueryForApi('はたらく細胞')).toBe('はたらく細胞');
+    expect(cleanQueryForApi('となりのトトロ')).toBe('となりのトトロ');
+  });
+
+  it('把動漫裝飾符號收成空格', () => {
+    expect(cleanQueryForApi('輝夜姬想讓人告白～天才們的戀愛頭腦戰～')).toBe(
+      '輝夜姬想讓人告白 天才們的戀愛頭腦戰'
+    );
+    expect(cleanQueryForApi('SPY×FAMILY')).toBe('SPY FAMILY');
+  });
 });

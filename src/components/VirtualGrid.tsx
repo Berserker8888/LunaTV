@@ -1,7 +1,13 @@
 'use client';
 
-import { useVirtualizer } from '@tanstack/react-virtual';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 interface VirtualGridProps<T> {
   items: T[];
@@ -21,6 +27,8 @@ interface VirtualGridProps<T> {
  *
  * It measures the actual container width + first-row height so it
  * works with responsive `grid-template-columns`.
+ *
+ * Scroll root is the window (same as search/douban restore), not document.body.
  */
 export default function VirtualGrid<T>({
   items,
@@ -32,6 +40,7 @@ export default function VirtualGrid<T>({
 }: VirtualGridProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(3);
+  const [scrollMargin, setScrollMargin] = useState(0);
 
   // Detect column count from a hidden probe row
   const probeRef = useRef<HTMLDivElement>(null);
@@ -43,6 +52,13 @@ export default function VirtualGrid<T>({
     if (cols > 0 && cols !== columns) setColumns(cols);
   }, [columns]);
 
+  const updateScrollMargin = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    setScrollMargin((prev) => (Math.abs(prev - top) > 1 ? top : prev));
+  }, []);
+
   useEffect(() => {
     detectColumns();
     const ro = new ResizeObserver(detectColumns);
@@ -50,16 +66,22 @@ export default function VirtualGrid<T>({
     return () => ro.disconnect();
   }, [detectColumns]);
 
+  useLayoutEffect(() => {
+    updateScrollMargin();
+  }, [updateScrollMargin, items.length, columns]);
+
+  useEffect(() => {
+    window.addEventListener('resize', updateScrollMargin);
+    return () => window.removeEventListener('resize', updateScrollMargin);
+  }, [updateScrollMargin]);
+
   const rowCount = Math.ceil(items.length / columns);
 
-  // TanStack Virtual 回傳不可安全記憶化的函式，React Compiler 規則對其
-  // 標記為不相容庫；本專案未啟用 Compiler，維持現狀
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const virtualizer = useVirtualizer({
+  const virtualizer = useWindowVirtualizer({
     count: rowCount,
-    getScrollElement: () => document.body,
     estimateSize: () => estimateRowHeight,
     overscan,
+    scrollMargin,
   });
 
   const virtualRows = virtualizer.getVirtualItems();
@@ -98,7 +120,9 @@ export default function VirtualGrid<T>({
                 top: 0,
                 left: 0,
                 width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${
+                  virtualRow.start - virtualizer.options.scrollMargin
+                }px)`,
               }}
             >
               <div className={`grid ${className}`}>

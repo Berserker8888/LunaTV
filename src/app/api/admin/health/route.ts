@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   if (!(await requireOwner(request))) {
-    return NextResponse.json({ error: '權限不足' }, { status: 401 });
+    return NextResponse.json({ error: '權限不足' }, { status: 403 });
   }
 
   const storage = getStorageRuntimeStatus();

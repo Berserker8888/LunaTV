@@ -1,5 +1,6 @@
 import { MutableRefObject, useCallback, useRef, useState } from 'react';
 
+import { pruneExpiredMapValues, setBoundedMapValue } from '@/lib/bounded-map';
 import { logger } from '@/lib/logger';
 import {
   filterTitleSafeCandidates,
@@ -23,6 +24,7 @@ import { SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8 } from '@/lib/utils';
 
 const SPEED_TEST_CACHE_TTL_MS = 30 * 60 * 1000;
+const SPEED_TEST_CACHE_MAX_ENTRIES = 200;
 
 export type PreferBestSourceResult = {
   source: SearchResult;
@@ -99,20 +101,27 @@ export function usePlaybackSourceSearch({
     episodeUrl: string,
     signal?: AbortSignal
   ): Promise<VideoTestResult> => {
-    const cached = speedTestCacheRef.current.get(episodeUrl);
     const now = Date.now();
+    pruneExpiredMapValues(
+      speedTestCacheRef.current,
+      (value) => value.expiresAt,
+      now
+    );
+    const cached = speedTestCacheRef.current.get(episodeUrl);
     if (cached && cached.expiresAt > now) {
       return cached.result;
     }
-    if (cached) {
-      speedTestCacheRef.current.delete(episodeUrl);
-    }
 
     const result = await getVideoResolutionFromM3u8(episodeUrl, signal);
-    speedTestCacheRef.current.set(episodeUrl, {
-      expiresAt: now + SPEED_TEST_CACHE_TTL_MS,
-      result,
-    });
+    setBoundedMapValue(
+      speedTestCacheRef.current,
+      episodeUrl,
+      {
+        expiresAt: now + SPEED_TEST_CACHE_TTL_MS,
+        result,
+      },
+      SPEED_TEST_CACHE_MAX_ENTRIES
+    );
     return result;
   };
 

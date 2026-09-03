@@ -24,11 +24,7 @@ function rejectOversizedOrLimitBody(
     return response;
   }
 
-  // 無 Content-Length 時串流計數，超過就中止（不整包進記憶體）
-  if (Number.isFinite(contentLength) && contentLength > 0) {
-    return response;
-  }
-
+  // 即使有 Content-Length 也要計數：上游可能謊報長度後繼續串流。
   let total = 0;
   const reader = response.body.getReader();
   const stream = new ReadableStream<Uint8Array>({

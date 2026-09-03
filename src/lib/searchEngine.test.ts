@@ -17,6 +17,10 @@ const {
 } = __searchEngineInternals;
 
 describe('searchEngine fuzzy match tests', () => {
+  it('does not treat 最終季 as season 4 and drop a 3-season finale', () => {
+    expect(isFuzzyMatch('路人超能100 第三季', '路人超能100 最終季')).toBe(true);
+  });
+
   it('should not match different seasons or spin-offs', () => {
     const res1 = isFuzzyMatch(
       '關於我轉生變成史萊姆這檔事 蒼海之淚篇',

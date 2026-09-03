@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth-cookie';
 import { getFreshConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { verifyPassword } from '@/lib/password';
 import {
   clearLoginAttempts,
   consumeLoginAttempt,
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
         if (limited) return limited;
       }
 
-      if (password !== envPassword) {
+      if (!verifyPassword(password, envPassword)) {
         return NextResponse.json(
           { ok: false, error: '密碼錯誤' },
           { status: 401 }
@@ -240,9 +241,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 可能是站長，直接讀環境變量
+    const ownerPassword = process.env.PASSWORD;
     if (
       username === process.env.USERNAME &&
-      password === process.env.PASSWORD
+      ownerPassword &&
+      verifyPassword(password, ownerPassword)
     ) {
       // 驗證成功，設定認證cookie
       const response = NextResponse.json({ ok: true });

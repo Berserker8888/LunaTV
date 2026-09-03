@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (!(await requireAdmin(request))) {
-      return NextResponse.json({ error: '權限不足' }, { status: 401 });
+      return NextResponse.json({ error: '權限不足' }, { status: 403 });
     }
 
     // 可讀快取，不必佔寫鎖

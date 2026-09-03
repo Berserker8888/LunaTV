@@ -1,20 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { getVerifiedAuthInfo } from './api-auth';
+import { isTrustedProxy } from './same-site';
 import { consumeRateLimit } from './security-store';
 import { getServerStorageType } from './storage-runtime';
 
-function parseBooleanEnv(value: string | undefined): boolean {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === 'true' || normalized === '1' || normalized === 'yes';
-}
-
-/** 直連 Docker 時客戶端可偽造 XFF；只有 TRUST_PROXY 開啟才採信。 */
-export function isTrustedProxy(
-  env: { TRUST_PROXY?: string; [key: string]: string | undefined } = process.env
-): boolean {
-  return parseBooleanEnv(env.TRUST_PROXY);
-}
+export { isTrustedProxy };
 
 /**
  * 從請求標頭推導客戶端 IP。

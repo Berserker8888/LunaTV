@@ -128,6 +128,11 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       setDynamicDoubanId(douban_id);
     }, [douban_id]);
 
+    useEffect(() => {
+      setImgError(false);
+      setIsLoading(false);
+    }, [poster]);
+
     useImperativeHandle(ref, () => ({
       setEpisodes: (eps?: number) => setDynamicEpisodes(eps),
       setSourceNames: (names?: string[]) => setDynamicSourceNames(names),

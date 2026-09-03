@@ -34,7 +34,7 @@ interface PlayStatsResponse {
 export async function GET(request: NextRequest) {
   try {
     if (!(await requireAdmin(request))) {
-      return NextResponse.json({ error: '權限不足' }, { status: 401 });
+      return NextResponse.json({ error: '權限不足' }, { status: 403 });
     }
 
     const config = await getConfig();

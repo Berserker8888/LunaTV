@@ -42,11 +42,6 @@ const SUBTITLE_SEASON_MAP: Record<string, number> = {
   懷玉折玉: 2,
   涩谷事变: 2,
   澀谷事變: 2,
-  终章: 4,
-  終章: 4,
-  最终季: 4,
-  最終季: 4,
-  finalseason: 4,
 };
 
 export function inferSeasonFromSubtitle(text: string): number | null {

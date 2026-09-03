@@ -5,7 +5,7 @@
 import Artplayer from 'artplayer';
 import Hls, { ErrorData, Events } from 'hls.js';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   getCachedBangumiAliases,
@@ -392,6 +392,12 @@ function PlayPageClient() {
     null
   );
 
+  const beginEpisodePlaybackLoad = () => {
+    setPlaybackSoftError(null);
+    setVideoLoadingStage('initing');
+    setIsVideoLoading(true);
+  };
+
   // 用於追蹤初始化 loading setTimeout，元件卸載時清理
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -419,28 +425,31 @@ function PlayPageClient() {
   };
 
   // 清理播放器資源的統一函數
-  const cleanupPlayer = (resetCountdownUi = true) => {
-    lastLoadedVideoUrlRef.current = '';
-    cancelAutoNextCountdown(resetCountdownUi);
+  const cleanupPlayer = useCallback(
+    (resetCountdownUi = true) => {
+      lastLoadedVideoUrlRef.current = '';
+      cancelAutoNextCountdown(resetCountdownUi);
 
-    if (artPlayerRef.current) {
-      try {
-        // 銷燬 HLS 實例
-        if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
-          artPlayerRef.current.video.hls.destroy();
+      if (artPlayerRef.current) {
+        try {
+          // 銷燬 HLS 實例
+          if (artPlayerRef.current.video && artPlayerRef.current.video.hls) {
+            artPlayerRef.current.video.hls.destroy();
+          }
+
+          // 銷燬 ArtPlayer 實例
+          artPlayerRef.current.destroy();
+          artPlayerRef.current = null;
+
+          logger.debug('播放器資源已清理');
+        } catch (err) {
+          logger.warn('清理播放器資源時出錯:', err);
+          artPlayerRef.current = null;
         }
-
-        // 銷燬 ArtPlayer 實例
-        artPlayerRef.current.destroy();
-        artPlayerRef.current = null;
-
-        logger.debug('播放器資源已清理');
-      } catch (err) {
-        logger.warn('清理播放器資源時出錯:', err);
-        artPlayerRef.current = null;
       }
-    }
-  };
+    },
+    [cancelAutoNextCountdown]
+  );
 
   // 跳過片頭片尾設定項（Artplayer 建立與設定面板重設共用）
   const buildSkipSettingsForPlayer = () =>
@@ -1329,13 +1338,16 @@ function PlayPageClient() {
       }
 
       // 如果仍然是同一集數且播放進度有效，則在播放器就緒後恢復到原始進度
-      if (targetIndex !== currentEpisodeIndex) {
+      if (targetIndex !== currentEpisodeIndexRef.current) {
         resumeTimeRef.current = 0;
+        lastGoodResumeRef.current = 0;
+        hasAppliedResumeRef.current = true;
       } else if (
         (!resumeTimeRef.current || resumeTimeRef.current === 0) &&
         currentPlayTime > 1
       ) {
         resumeTimeRef.current = currentPlayTime;
+        lastGoodResumeRef.current = currentPlayTime;
       }
 
       // 更新URL參數（不重新整理頁面）
@@ -1507,6 +1519,7 @@ function PlayPageClient() {
         const currentTotal = currentDetail?.episodes?.length || 0;
         const resolved = resolveLoadedEpisodeIndex(finalTarget, currentTotal);
         if (resolved.empty) {
+          setIsVideoLoading(false);
           toast('無法取得此來源的播放清單', 'error');
         } else {
           // 手動切集要先取消倒數，否則倒數結束會把使用者拉回自動連播的目標集
@@ -1514,6 +1527,9 @@ function PlayPageClient() {
           // 在更換集數前儲存當前播放進度
           if (artPlayerRef.current) {
             saveCurrentPlayProgress();
+          }
+          if (resolved.index !== currentEpisodeIndexRef.current) {
+            beginEpisodePlaybackLoad();
           }
           lockResumeAndSetEpisode(resolved.index);
           replacePlaybackUrl({
@@ -1535,6 +1551,7 @@ function PlayPageClient() {
       }
     } catch (e) {
       logger.error('切換集數失敗:', e);
+      setIsVideoLoading(false);
       toast('切換集數失敗，請重試', 'error');
     } finally {
       episodeChangingRef.current = false;
@@ -1549,6 +1566,7 @@ function PlayPageClient() {
       if (artPlayerRef.current) {
         saveCurrentPlayProgress();
       }
+      beginEpisodePlaybackLoad();
       lockResumeAndSetEpisode(idx - 1);
     }
   };
@@ -1564,6 +1582,7 @@ function PlayPageClient() {
       if (artPlayerRef.current) {
         saveCurrentPlayProgress();
       }
+      beginEpisodePlaybackLoad();
       lockResumeAndSetEpisode(idx + 1);
       return;
     }
@@ -1600,6 +1619,10 @@ function PlayPageClient() {
     onPreviousEpisode: handlePreviousEpisode,
     onNextEpisode: handleNextEpisode,
     onToggleShortcutsHelp: () => setShowShortcuts((prev) => !prev),
+    onEscape: () => {
+      cancelAutoNextCountdown();
+      setShowShortcuts(false);
+    },
   });
 
   // ---------------------------------------------------------------------------
@@ -1723,7 +1746,7 @@ function PlayPageClient() {
         container: artRef.current,
         url: videoUrl,
         poster: processImageUrl(videoCover),
-        volume: 0.7,
+        volume: lastVolumeRef.current,
         isLive: false,
         muted: false,
         autoplay: !resumeTimeRef.current,
@@ -2651,7 +2674,12 @@ function PlayPageClient() {
                         const d = detailRef.current;
                         const idx = currentEpisodeIndexRef.current;
                         if (d && d.episodes && idx < d.episodes.length - 1) {
-                          setCurrentEpisodeIndex(idx + 1);
+                          cancelAutoNextCountdown();
+                          saveCurrentPlayProgress();
+                          showSkipOutroRef.current = false;
+                          setShowSkipOutro(false);
+                          beginEpisodePlaybackLoad();
+                          lockResumeAndSetEpisode(idx + 1);
                         } else {
                           artPlayerRef.current.currentTime =
                             (artPlayerRef.current.duration || 1) - 0.1;
@@ -2687,6 +2715,7 @@ function PlayPageClient() {
                       setPlaybackSoftError(null);
                       setVodProxySlot(null);
                       lastLoadedVideoUrlRef.current = '';
+                      beginEpisodePlaybackLoad();
                       setPlayerReloadToken((token) => token + 1);
                     }}
                     onAutoSwitch={
@@ -2740,7 +2769,6 @@ function PlayPageClient() {
                           });
                       });
                     }}
-                    onDismiss={() => setPlaybackSoftError(null)}
                   />
                 )}
 

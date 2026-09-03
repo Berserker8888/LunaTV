@@ -138,6 +138,11 @@ const MUTATING_SAME_SITE_POSTS = [
   'admin/data_migration/export/route.ts',
   'change-password/route.ts',
   'logout/route.ts',
+  'favorites/route.ts',
+  'playrecords/route.ts',
+  'searchhistory/route.ts',
+  'skipconfigs/route.ts',
+  'history/delete/route.ts',
 ];
 
 const EXPECTED_PROXY_EXCLUSIONS = [
@@ -148,7 +153,6 @@ const EXPECTED_PROXY_EXCLUSIONS = [
   'login',
   'warning',
   'api/login',
-  'api/register',
   'api/logout',
   'api/cron',
   'api/server-config',
@@ -305,7 +309,6 @@ describe('proxy.ts 第一層防護', () => {
       entry.startsWith('api/')
     ).map((entry) => `${entry.slice('api/'.length)}/route.ts`);
 
-    // api/register 在 matcher 內但專案並未實作，list 出來即可確認它確實不存在
     const existing = new Set(routes.map(({ route }) => route));
     const undocumented = bypassed
       .filter((route) => existing.has(route))

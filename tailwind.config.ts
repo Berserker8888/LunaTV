@@ -16,8 +16,20 @@ const config: Config = {
         },
       },
       fontFamily: {
-        primary: ['Inter', ...defaultTheme.fontFamily.sans],
-        noto: ['"Noto Sans TC"', ...defaultTheme.fontFamily.sans],
+        primary: [
+          'var(--font-inter)',
+          'var(--font-noto-sans-tc)',
+          '"Microsoft JhengHei"',
+          '"PingFang TC"',
+          ...defaultTheme.fontFamily.sans,
+        ],
+        noto: [
+          'var(--font-noto-sans-tc)',
+          '"Noto Sans TC"',
+          '"Microsoft JhengHei"',
+          '"PingFang TC"',
+          ...defaultTheme.fontFamily.sans,
+        ],
       },
       colors: {
         primary: {

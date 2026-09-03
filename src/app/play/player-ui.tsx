@@ -1,10 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { SearchResult } from '@/lib/types';
 import { formatYear, getProxiedImageUrl, processImageUrl } from '@/lib/utils';
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 
 import { FavoriteIcon } from './FavoriteIcon';
 
@@ -159,12 +160,14 @@ export function AutoNextCountdownOverlay({
         </div>
         <div className='flex gap-3 justify-center'>
           <button
+            type='button'
             onClick={onPlayNow}
             className='px-5 py-2.5 bg-accent hover:bg-accent/90 text-white font-medium rounded-xl transition-colors text-sm'
           >
             立即播放
           </button>
           <button
+            type='button'
             onClick={onCancel}
             className='px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-colors text-sm border border-white/20'
           >
@@ -179,26 +182,41 @@ export function AutoNextCountdownOverlay({
 const SHORTCUT_ROWS: [string, string][] = [
   ['空白鍵', '播放 / 暫停'],
   ['F', '切換全螢幕'],
+  ['P', '子母畫面'],
   ['← / →', '快退 / 快進 10 秒'],
   ['↑ / ↓', '增減音量'],
   ['[ / ]', '減速 / 加速播放'],
   ['M', '靜音切換'],
   ['Alt + ← / →', '上 / 下一集'],
+  ['Esc', '關閉說明 / 取消連播'],
   ['? / H', '快捷鍵幫助'],
 ];
 
 /** 快捷鍵幫助面板 */
 export function ShortcutsHelpPanel({ onClose }: { onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(true, dialogRef, onClose);
+
   return (
     <div
       className='fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4'
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='shortcuts-help-title'
+        tabIndex={-1}
         className='bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl'
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className='text-white font-bold text-lg mb-4'>快捷鍵幫助</h3>
+        <h3
+          id='shortcuts-help-title'
+          className='text-white font-bold text-lg mb-4'
+        >
+          快捷鍵幫助
+        </h3>
         <div className='space-y-2.5 text-sm'>
           {SHORTCUT_ROWS.map(([key, desc]) => (
             <div key={key} className='flex justify-between'>

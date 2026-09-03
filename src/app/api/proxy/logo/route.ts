@@ -70,7 +70,9 @@ export async function GET(request: Request) {
       { status: 403 }
     );
   }
-  const liveSource = config.LiveConfig?.find((s: any) => s.key === source);
+  const liveSource = config.LiveConfig?.find(
+    (s: any) => s.key === source && !s.disabled
+  );
   if (!liveSource) {
     return NextResponse.json({ error: 'Source not found' }, { status: 404 });
   }

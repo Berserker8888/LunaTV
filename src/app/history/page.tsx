@@ -6,6 +6,7 @@ import { Clock, Search, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { toSearchSimplified } from '@/lib/chinese';
 import type { PlayRecord } from '@/lib/db.client';
 import {
   clearAllPlayRecords,
@@ -119,13 +120,13 @@ export default function HistoryPage() {
 
   const filteredRecords = useMemo(() => {
     if (!searchQuery.trim()) return records;
-    const q = searchQuery.trim().toLowerCase();
-    return records.filter(
-      (r) =>
-        r.title.toLowerCase().includes(q) ||
-        (r.source_name || '').toLowerCase().includes(q) ||
-        (r.search_title || '').toLowerCase().includes(q)
-    );
+    const q = toSearchSimplified(searchQuery.trim()).toLowerCase();
+    return records.filter((r) => {
+      const haystack = [r.title, r.source_name || '', r.search_title || '']
+        .map((value) => toSearchSimplified(value).toLowerCase())
+        .join('\n');
+      return haystack.includes(q);
+    });
   }, [records, searchQuery]);
   const allFilteredSelected =
     filteredRecords.length > 0 &&

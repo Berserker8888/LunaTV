@@ -1510,7 +1510,7 @@ function LivePageGuard() {
   );
 
   if (enabled === null) {
-    return <div>Loading...</div>;
+    return <PageLoading />;
   }
 
   if (!enabled) {

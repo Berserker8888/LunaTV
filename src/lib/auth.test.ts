@@ -99,6 +99,11 @@ describe('getAuthSessionSecret', () => {
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('treats whitespace PASSWORD as missing', () => {
+    process.env.PASSWORD = '   ';
+    expect(getAuthSessionSecret()).toBeNull();
+  });
 });
 
 describe('verifySignature', () => {

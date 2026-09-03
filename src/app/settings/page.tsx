@@ -212,7 +212,7 @@ export default function SettingsPage() {
               <ArrowLeft className='w-5 h-5' />
               <span className='text-sm font-medium'>返回</span>
             </button>
-            <h1 className='text-lg font-bold tracking-wide'>本地設定</h1>
+            <h1 className='text-lg font-bold tracking-wide'>本機設定</h1>
           </div>
           <button
             onClick={handleReset}

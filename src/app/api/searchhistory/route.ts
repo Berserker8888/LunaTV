@@ -7,6 +7,7 @@ import {
   readJsonObject,
 } from '@/lib/api-input-validation';
 import { db } from '@/lib/db';
+import { rejectCrossSiteRequest } from '@/lib/same-site';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +49,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const crossSite = rejectCrossSiteRequest(request);
+    if (crossSite) return crossSite;
     const activeUser = await requireActiveUser(request);
     if (!activeUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -101,6 +104,8 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const crossSite = rejectCrossSiteRequest(request);
+    if (crossSite) return crossSite;
     const activeUser = await requireActiveUser(request);
     if (!activeUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

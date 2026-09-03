@@ -20,7 +20,7 @@ export async function proxy(request: NextRequest) {
 
   const storageType = getServerStorageType();
 
-  if (!process.env.PASSWORD) {
+  if (!process.env.PASSWORD?.trim()) {
     // 如果沒有設定密碼，重新導向到警告頁面
     const warningUrl = new URL('/warning', request.url);
     return NextResponse.redirect(warningUrl);
@@ -43,10 +43,14 @@ export async function proxy(request: NextRequest) {
     if (!authInfo.signature) {
       return handleAuthFailure(request, pathname);
     }
+    const sessionSecret = getAuthSessionSecret();
+    if (!sessionSecret) {
+      return handleAuthFailure(request, pathname);
+    }
     const isValidSignature = await verifyAuthSession(
       authInfo,
       'localstorage',
-      getAuthSessionSecret() || ''
+      sessionSecret
     );
     if (isValidSignature) {
       const currentVersion = await getSessionVersion('localstorage');
@@ -65,10 +69,14 @@ export async function proxy(request: NextRequest) {
 
   // 驗證簽名（如果存在）
   if (authInfo.signature) {
+    const sessionSecret = getAuthSessionSecret();
+    if (!sessionSecret) {
+      return handleAuthFailure(request, pathname);
+    }
     const isValidSignature = await verifyAuthSession(
       authInfo,
       authInfo.username,
-      getAuthSessionSecret() || ''
+      sessionSecret
     );
 
     // 簽名驗證通過即可
@@ -131,6 +139,6 @@ export function shouldSkipAuth(pathname: string): boolean {
 // 設定 proxy 匹配規則（Next 16 起 middleware 更名為 proxy，固定 Node.js runtime）
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|sw.js|login|warning|api/login|api/register|api/logout|api/cron|api/server-config|api/health).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|login|warning|api/login|api/logout|api/cron|api/server-config|api/health).*)',
   ],
 };

@@ -358,6 +358,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   });
 
   useEffect(() => {
+    let cancelled = false;
     const fetchVideoInfosInBatches = async () => {
       if (!optimizationEnabled || availableSources.length === 0) return;
 
@@ -379,12 +380,16 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
       const batchSize = 4;
 
       for (let start = 0; start < pendingSources.length; start += batchSize) {
+        if (cancelled) return;
         const batch = pendingSources.slice(start, start + batchSize);
         await Promise.all(batch.map(getVideoInfo));
       }
     };
 
     fetchVideoInfosInBatches();
+    return () => {
+      cancelled = true;
+    };
   }, [availableSources, getVideoInfo, optimizationEnabled]);
 
   const categoriesAsc = useMemo(() => {

@@ -7,7 +7,10 @@
  *   3. 最長公共子序列（subsequence）僅在已有足夠連續核心時作輔助放寬
  * 以上均不滿足則視為不匹配，降低「點 A 搜出 B」風險。
  */
-import { generateSearchVariants } from './chinese';
+import {
+  convertJapaneseParticlesForSearch,
+  generateSearchVariants,
+} from './chinese';
 import { getRegionalMainlandTitles } from './regional-title-aliases';
 import { convertT2S } from './s2t';
 import { extractPart, extractSeason } from './titleParser';
@@ -137,18 +140,14 @@ function passesHybridCoverage(
  * 標準化文字：去空格、轉小寫、繁轉簡、日文助詞轉中文（用於比較）
  */
 function normalize(text: string): string {
-  return convertT2S(
+  const converted = convertT2S(
     text
       // NFKC：全形英數→半形（ＳＰＹ→SPY）、全形空白→半形空白、相容字元統一
       .normalize('NFKC')
       .replaceAll(' ', '')
       .toLowerCase()
-      // 日文助詞標準化：讓含日文 の 的標題能匹配中文 的
-      .replace(/の/g, '的')
-      .replace(/は/g, '')
-      .replace(/を/g, '')
-      .replace(/と/g, '和')
   );
+  return convertJapaneseParticlesForSearch(converted);
 }
 
 function stripSeasonMarkers(text: string): string {
