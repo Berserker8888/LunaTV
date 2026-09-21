@@ -15,13 +15,11 @@ import {
   saveFavorite,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
-import { logger } from '@/lib/logger';
 import {
-  getLiveHlsBufferConfig,
-  HLS_APPEND_TIMEOUT_MS,
-  HLS_LIVE_MAX_UNCHANGED_PLAYLIST_REFRESH,
-  isMobileUserAgent,
-} from '@/lib/play-page-utils';
+  detectPlaybackDeviceFromNavigator,
+  getLiveHlsPlaybackConfig,
+} from '@/lib/hls-playback-config';
+import { logger } from '@/lib/logger';
 import { useClientValue } from '@/hooks/useClientMount';
 
 import EpgScrollableRow from '@/components/EpgScrollableRow';
@@ -858,18 +856,23 @@ function LivePageClient() {
       }
     }
 
-    const hlsBuffer = getLiveHlsBufferConfig(
-      typeof navigator !== 'undefined' && isMobileUserAgent(navigator.userAgent)
-    );
+    if (!Hls.isSupported()) {
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = url;
+        return;
+      }
+      logger.error('瀏覽器不支援 HLS');
+      setIsVideoLoading(false);
+      setPlaybackError('目前瀏覽器無法播放此直播串流');
+      return;
+    }
+
     const hls = new Hls({
-      debug: false,
-      enableWorker: true,
-      lowLatencyMode: true,
-      maxBufferLength: hlsBuffer.maxBufferLength,
-      backBufferLength: hlsBuffer.backBufferLength,
-      maxBufferSize: hlsBuffer.maxBufferSize,
-      appendTimeout: HLS_APPEND_TIMEOUT_MS,
-      liveMaxUnchangedPlaylistRefresh: HLS_LIVE_MAX_UNCHANGED_PLAYLIST_REFRESH,
+      ...getLiveHlsPlaybackConfig(
+        detectPlaybackDeviceFromNavigator(
+          typeof navigator === 'undefined' ? undefined : navigator
+        )
+      ),
       loader: CustomHlsJsLoader,
     });
 

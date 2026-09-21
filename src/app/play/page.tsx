@@ -20,15 +20,21 @@ import {
   saveSkipConfig,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import {
+  detectPlaybackDeviceFromNavigator,
+  findUnsupportedHlsVideoCodec,
+  getMediaSourceTypeSupported,
+  getVodHlsPlaybackConfig,
+  nextPlaybackFailoverAction,
+  PLAYBACK_STARTUP_FAILOVER_MS,
+  type PlaybackFailoverReason,
+} from '@/lib/hls-playback-config';
 import { logger } from '@/lib/logger';
 import {
   formatPlayerTime,
   getResultEpisodeCount,
   getStableTitle,
-  getVodHlsBufferConfig,
-  HLS_APPEND_TIMEOUT_MS,
   hydrateSearchResultEpisodesWithRetry,
-  isMobileUserAgent,
   isPreferredDisplayQuality,
   needsEpisodeHydration,
   pickFirstPlayableEpisodeUrl,
@@ -66,7 +72,11 @@ import PlayerGestureLayer from '@/components/PlayerGestureLayer';
 import { useToast } from '@/components/ToastProvider';
 
 import { CustomHlsJsLoader } from './custom-hls-loader';
-import { nextHlsFatalAction, tallySoftNetworkError } from './hls-fatal';
+import {
+  HLS_SOFT_ERROR_MESSAGE,
+  nextHlsFatalAction,
+  tallySoftNetworkError,
+} from './hls-fatal';
 import {
   applyPlaybackUrlUpdates,
   applyResumeToPlayer,
@@ -404,6 +414,27 @@ function PlayPageClient() {
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
   const lastLoadedVideoUrlRef = useRef<string>('');
+  const playbackFailedKeysRef = useRef<Set<string>>(new Set());
+  const autoSwitchCountRef = useRef(0);
+  const playbackStartedRef = useRef(false);
+  const playbackWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const availableSourcesRef = useRef<SearchResult[]>([]);
+  const precomputedVideoInfoRef = useRef<
+    Map<string, { quality: string; loadSpeed: string; pingTime: number }>
+  >(new Map());
+  const handleSourceChangeRef = useRef<
+    (
+      source: string,
+      id: string,
+      title: string,
+      options?: { fromAutoSwitch?: boolean }
+    ) => void
+  >(() => undefined);
+  const applyPlaybackFailoverRef = useRef<
+    (reason: PlaybackFailoverReason, message: string) => boolean
+  >(() => false);
 
   // Wake Lock（螢幕常亮）
   const { requestWakeLock, releaseWakeLock } = useWakeLock();
@@ -428,6 +459,11 @@ function PlayPageClient() {
   const cleanupPlayer = useCallback(
     (resetCountdownUi = true) => {
       lastLoadedVideoUrlRef.current = '';
+      playbackStartedRef.current = false;
+      if (playbackWatchdogRef.current) {
+        clearTimeout(playbackWatchdogRef.current);
+        playbackWatchdogRef.current = null;
+      }
       cancelAutoNextCountdown(resetCountdownUi);
 
       if (artPlayerRef.current) {
@@ -528,6 +564,101 @@ function PlayPageClient() {
     bangumiSearchAliasesRef,
     searchTitle,
     searchType,
+  });
+
+  useEffect(() => {
+    availableSourcesRef.current = availableSources;
+  }, [availableSources]);
+
+  useEffect(() => {
+    precomputedVideoInfoRef.current = precomputedVideoInfo;
+  }, [precomputedVideoInfo]);
+
+  const clearPlaybackWatchdog = () => {
+    if (playbackWatchdogRef.current) {
+      clearTimeout(playbackWatchdogRef.current);
+      playbackWatchdogRef.current = null;
+    }
+  };
+
+  const rememberPlaybackResume = (video?: HTMLVideoElement | null) => {
+    const now = video?.currentTime || artPlayerRef.current?.currentTime || 0;
+    const saved =
+      now > 3 ? now : resumeTimeRef.current || lastGoodResumeRef.current;
+    if (typeof saved === 'number' && saved > 3) {
+      resumeTimeRef.current = saved;
+      lastGoodResumeRef.current = saved;
+    }
+  };
+
+  const pickAutoSwitchTarget = () => {
+    const failed = new Set(playbackFailedKeysRef.current);
+    failed.add(`${currentSourceRef.current}-${currentIdRef.current}`);
+    return pickNextPreferredSource(availableSourcesRef.current, {
+      currentSource: currentSourceRef.current,
+      currentId: currentIdRef.current,
+      getInfo: (key) => precomputedVideoInfoRef.current.get(key),
+      excludeKeys: failed,
+    });
+  };
+
+  const applyPlaybackFailover = (
+    reason: PlaybackFailoverReason,
+    message: string
+  ): boolean => {
+    if (reason === 'watchdog') {
+      const playingVideo = artPlayerRef.current?.video as
+        HTMLVideoElement | undefined;
+      if (
+        playbackStartedRef.current ||
+        (playingVideo && playingVideo.readyState >= 3)
+      ) {
+        playbackStartedRef.current = true;
+        clearPlaybackWatchdog();
+        return true;
+      }
+    }
+    rememberPlaybackResume();
+    clearPlaybackWatchdog();
+
+    const nextSource = pickAutoSwitchTarget();
+    const action = nextPlaybackFailoverAction({
+      reason,
+      alreadyProxied: isVodHlsProxyUrl(lastLoadedVideoUrlRef.current),
+      hasNextSource: Boolean(nextSource?.source && nextSource.id),
+      autoSwitchCount: autoSwitchCountRef.current,
+    });
+
+    if (action.type === 'proxy') {
+      setVodProxySlot(
+        `${currentSourceRef.current}+${currentIdRef.current}+${currentEpisodeIndexRef.current}`
+      );
+      return true;
+    }
+
+    if (action.type === 'switchSource' && nextSource?.source && nextSource.id) {
+      playbackFailedKeysRef.current.add(
+        `${currentSourceRef.current}-${currentIdRef.current}`
+      );
+      autoSwitchCountRef.current += 1;
+      const label = nextSource.source_name || nextSource.title || '下一個來源';
+      toast(`來源無法播放，已自動換到「${label}」`, 'info');
+      handleSourceChangeRef.current(
+        String(nextSource.source),
+        String(nextSource.id),
+        nextSource.title || videoTitleRef.current,
+        { fromAutoSwitch: true }
+      );
+      return true;
+    }
+
+    setIsVideoLoading(false);
+    setPlaybackSoftError(message);
+    return false;
+  };
+
+  useEffect(() => {
+    applyPlaybackFailoverRef.current = applyPlaybackFailover;
   });
 
   useEffect(() => {
@@ -1266,10 +1397,15 @@ function PlayPageClient() {
   const handleSourceChange = async (
     newSource: string,
     newId: string,
-    newTitle: string
+    newTitle: string,
+    options?: { fromAutoSwitch?: boolean }
   ) => {
     const requestId = ++sourceChangeRequestRef.current;
     const isLatestRequest = () => sourceChangeRequestRef.current === requestId;
+    if (!options?.fromAutoSwitch) {
+      autoSwitchCountRef.current = 0;
+      playbackFailedKeysRef.current.delete(`${newSource}-${newId}`);
+    }
     try {
       // 換源等同手動介入，先中止進行中的自動連播倒數
       cancelAutoNextCountdown();
@@ -1443,6 +1579,10 @@ function PlayPageClient() {
       setError(err instanceof Error ? err.message : '換源失敗');
     }
   };
+
+  useEffect(() => {
+    handleSourceChangeRef.current = handleSourceChange;
+  });
 
   // ---------------------------------------------------------------------------
   // 詳情刷新 / 集數追更（核心邏輯在 detail-refresh + usePlayDetailRefresh）
@@ -1742,6 +1882,8 @@ function PlayPageClient() {
       const skipSettings = buildSkipSettingsForPlayer();
 
       lastLoadedVideoUrlRef.current = videoUrl;
+      playbackStartedRef.current = false;
+      clearPlaybackWatchdog();
       artPlayerRef.current = new Artplayer({
         container: artRef.current,
         url: videoUrl,
@@ -1789,25 +1931,27 @@ function PlayPageClient() {
             if (video.hls) {
               video.hls.destroy();
             }
-            const hlsBuffer = getVodHlsBufferConfig(
-              typeof navigator !== 'undefined' &&
-                isMobileUserAgent(navigator.userAgent)
-            );
+
+            if (!Hls.isSupported()) {
+              if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                ensureVideoSource(video, url);
+                return;
+              }
+              logger.error('瀏覽器不支援 HLS');
+              applyPlaybackFailoverRef.current(
+                'hlsGiveUp',
+                HLS_SOFT_ERROR_MESSAGE
+              );
+              return;
+            }
+
             const hls = new Hls({
-              debug: false, // 關閉日誌
-              enableWorker: true, // WebWorker 解碼，降低主線程壓力
-              // 點播不要開 LL-HLS：低延遲模式容易造成音畫/字幕時間軸錯位
-              lowLatencyMode: false,
-              // 允許小幅緩衝空洞由播放器填補，減少 seek/去廣告後的 A/V drift
-              maxBufferHole: 0.5,
-
-              /* 緩衝/內存相關：手機更短，避免 80MB 把小機/手機 RAM 打滿 */
-              maxBufferLength: hlsBuffer.maxBufferLength,
-              backBufferLength: hlsBuffer.backBufferLength,
-              maxBufferSize: hlsBuffer.maxBufferSize,
-              appendTimeout: HLS_APPEND_TIMEOUT_MS,
-
-              /* 自定義loader */
+              ...getVodHlsPlaybackConfig(
+                detectPlaybackDeviceFromNavigator(
+                  typeof navigator === 'undefined' ? undefined : navigator
+                )
+              ),
               loader: blockAdEnabledRef.current
                 ? CustomHlsJsLoader
                 : Hls.DefaultConfig.loader,
@@ -1818,6 +1962,24 @@ function PlayPageClient() {
             video.hls = hls;
 
             ensureVideoSource(video, url);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
+              const unsupported = findUnsupportedHlsVideoCodec(
+                data?.levels || hls.levels,
+                getMediaSourceTypeSupported()
+              );
+              if (!unsupported) return;
+              logger.warn('目前來源的影片編碼此瀏覽器無法播放', unsupported);
+              try {
+                hls.destroy();
+              } catch {
+                // ignore
+              }
+              applyPlaybackFailoverRef.current(
+                'codec',
+                `目前來源的編碼（${unsupported}）此瀏覽器無法播放，請換一個片源`
+              );
+            });
 
             let networkRetries = 0;
             let mediaRetries = 0;
@@ -1839,15 +2001,7 @@ function PlayPageClient() {
                     isVodHlsProxyUrl(videoUrl)
                   )
                 ) {
-                  const now = video.currentTime || 0;
-                  const saved =
-                    now > 3
-                      ? now
-                      : resumeTimeRef.current || lastGoodResumeRef.current;
-                  if (typeof saved === 'number' && saved > 3) {
-                    resumeTimeRef.current = saved;
-                    lastGoodResumeRef.current = saved;
-                  }
+                  rememberPlaybackResume(video);
                   setVodProxySlot(playbackSlotKey);
                   return;
                 }
@@ -1861,15 +2015,7 @@ function PlayPageClient() {
                 mediaRetries = nextMediaRetries;
                 if (action.type === 'startLoad') {
                   logger.debug('網路錯誤，嘗試恢復...');
-                  const now = video.currentTime || 0;
-                  const saved =
-                    now > 3
-                      ? now
-                      : resumeTimeRef.current || lastGoodResumeRef.current;
-                  if (typeof saved === 'number' && saved > 3) {
-                    resumeTimeRef.current = saved;
-                    lastGoodResumeRef.current = saved;
-                  }
+                  rememberPlaybackResume(video);
                   hls.startLoad();
                   return;
                 }
@@ -1891,22 +2037,13 @@ function PlayPageClient() {
                     isVodHlsProxyUrl(videoUrl)
                   )
                 ) {
-                  const now = video.currentTime || 0;
-                  const saved =
-                    now > 3
-                      ? now
-                      : resumeTimeRef.current || lastGoodResumeRef.current;
-                  if (typeof saved === 'number' && saved > 3) {
-                    resumeTimeRef.current = saved;
-                    lastGoodResumeRef.current = saved;
-                  }
+                  rememberPlaybackResume(video);
                   setVodProxySlot(playbackSlotKey);
                   return;
                 }
                 logger.error('無法恢復的致命錯誤，停止加載', data);
                 hls.destroy();
-                setIsVideoLoading(false);
-                setPlaybackSoftError(action.message);
+                applyPlaybackFailoverRef.current('hlsGiveUp', action.message);
               }
             );
           },
@@ -2307,6 +2444,8 @@ function PlayPageClient() {
       // 監聽影片可播放事件，這時恢復播放進度更可靠。
       // duration 還沒穩定時不要清掉 resumeTimeRef，否則 HLS 重試後無法再 seek。
       artPlayerRef.current.on('video:canplay', () => {
+        playbackStartedRef.current = true;
+        clearPlaybackWatchdog();
         tryApplyResumeTime();
 
         setTimeout(() => {
@@ -2520,6 +2659,10 @@ function PlayPageClient() {
           videoUrl
         );
       }
+      playbackWatchdogRef.current = setTimeout(() => {
+        playbackWatchdogRef.current = null;
+        applyPlaybackFailoverRef.current('watchdog', HLS_SOFT_ERROR_MESSAGE);
+      }, PLAYBACK_STARTUP_FAILOVER_MS);
     } catch (err) {
       logger.error('創建播放器失敗:', err);
       setError('播放器初始化失敗');
@@ -2715,6 +2858,10 @@ function PlayPageClient() {
                       setPlaybackSoftError(null);
                       setVodProxySlot(null);
                       lastLoadedVideoUrlRef.current = '';
+                      autoSwitchCountRef.current = 0;
+                      playbackFailedKeysRef.current.delete(
+                        `${currentSource}-${currentId}`
+                      );
                       beginEpisodePlaybackLoad();
                       setPlayerReloadToken((token) => token + 1);
                     }}

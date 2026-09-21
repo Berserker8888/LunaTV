@@ -6,6 +6,19 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.5.4',
+    date: '2026-09-21',
+    content: `
+- 播放：HLS 依裝置調整緩衝、預取與重試；桌面先拉第一片，死源較快放棄。
+- 播放：Safari／手機關閉 transmuxer Worker；iOS 關閉開片測速，避免舊 iPad 卡死。
+- 播放：開片 12 秒沒畫面先走站內代理，仍不行就自動換下一個可用源。
+- 播放：瀏覽器不支援的編碼（如 HEVC）立刻換源，不再黑屏空轉。
+- 播放：iOS Safari 沒有 MSE 時改走原生 HLS。
+- 直播：套用同一套裝置感知 HLS 參數。
+    `.trim(),
+  },
+
+  {
     version: 'v3.5.3',
     date: '2026-09-03',
     content: `

@@ -343,14 +343,22 @@ export function pickNextPreferredSource<
     currentSource?: string | number | null;
     currentId?: string | number | null;
     getInfo: (sourceKey: string) => SourceQualityInfo | undefined;
+    excludeKeys?: Iterable<string>;
   }
 ): T | null {
   const keyOf = (item: T) => `${item.source}-${item.id}`;
   const isCurrent = (item: T) =>
     item.source?.toString() === options.currentSource?.toString() &&
     item.id?.toString() === options.currentId?.toString();
+  const excluded = new Set(
+    options.excludeKeys ? [...options.excludeKeys].map(String) : []
+  );
 
-  const others = sources.filter((item) => !isCurrent(item));
+  const others = sources.filter((item) => {
+    if (isCurrent(item)) return false;
+    if (excluded.has(keyOf(item))) return false;
+    return true;
+  });
   if (others.length === 0) return null;
 
   const hd = others.find((item) => {

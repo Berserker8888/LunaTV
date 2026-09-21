@@ -465,6 +465,22 @@ describe('畫質優先過濾（換源列表）', () => {
     ).toEqual({ source: 'hd', id: '3' });
   });
 
+  it('skips sources already marked as failed when auto-switching', () => {
+    const sources = [
+      { source: 'cur', id: '1' },
+      { source: 'dead', id: '2' },
+      { source: 'ok', id: '3' },
+    ];
+    expect(
+      pickNextPreferredSource(sources, {
+        currentSource: 'cur',
+        currentId: '1',
+        getInfo: () => undefined,
+        excludeKeys: ['dead-2'],
+      })
+    ).toEqual({ source: 'ok', id: '3' });
+  });
+
   it('識別 1080p+ 與低畫質', () => {
     expect(isPreferredDisplayQuality('1080p')).toBe(true);
     expect(isPreferredDisplayQuality('4K')).toBe(true);
