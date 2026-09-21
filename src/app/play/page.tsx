@@ -52,9 +52,11 @@ import { makeSkipIdentityParts } from '@/lib/skip-identity';
 import { SearchResult, SkipConfig } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 import {
-  buildVodHlsProxyUrl,
-  isVodHlsProxyUrl,
-  shouldFallbackToVodProxy,
+  detectVodTransport,
+  nextVodTransportOnNetworkError,
+  readCorsApiOriginFromBrowser,
+  resolveVodPlaybackUrl,
+  type VodTransport,
 } from '@/lib/vod-hls-proxy';
 import { useAutoNextCountdown } from '@/hooks/useAutoNextCountdown';
 import { useFavorite } from '@/hooks/useFavorite';
@@ -335,12 +337,17 @@ function PlayPageClient() {
   const directVideoUrl = detail?.episodes?.[currentEpisodeIndex] || '';
   const playbackSlotKey = `${currentSource}+${currentId}+${currentEpisodeIndex}`;
   const [vodProxySlot, setVodProxySlot] = useState<string | null>(null);
+  const [vodTransport, setVodTransport] = useState<VodTransport>('direct');
   const [playerReloadToken, setPlayerReloadToken] = useState(0);
-  const useVodProxy = vodProxySlot === playbackSlotKey;
-  const videoUrl =
-    useVodProxy && directVideoUrl && currentSource
-      ? buildVodHlsProxyUrl(directVideoUrl, currentSource)
-      : directVideoUrl;
+  const corsApiOrigin = readCorsApiOriginFromBrowser();
+  const activeTransport: VodTransport =
+    vodProxySlot === playbackSlotKey ? vodTransport : 'direct';
+  const videoUrl = resolveVodPlaybackUrl({
+    directUrl: directVideoUrl,
+    sourceKey: currentSource || '',
+    transport: activeTransport,
+    corsApiOrigin,
+  });
   const totalEpisodes = detail?.episodes?.length || 0;
   const lastVolumeRef = useRef<number>(0.7);
   const lastPlaybackRateRef = useRef<number>(
@@ -624,12 +631,14 @@ function PlayPageClient() {
     const nextSource = pickAutoSwitchTarget();
     const action = nextPlaybackFailoverAction({
       reason,
-      alreadyProxied: isVodHlsProxyUrl(lastLoadedVideoUrlRef.current),
+      transport: detectVodTransport(lastLoadedVideoUrlRef.current),
+      hasCorsApi: Boolean(readCorsApiOriginFromBrowser()),
       hasNextSource: Boolean(nextSource?.source && nextSource.id),
       autoSwitchCount: autoSwitchCountRef.current,
     });
 
-    if (action.type === 'proxy') {
+    if (action.type === 'corsapi' || action.type === 'proxy') {
+      setVodTransport(action.type === 'corsapi' ? 'corsapi' : 'station');
       setVodProxySlot(
         `${currentSourceRef.current}+${currentIdRef.current}+${currentEpisodeIndexRef.current}`
       );
@@ -1994,16 +2003,17 @@ function PlayPageClient() {
                   softNetworkFails
                 );
                 softNetworkFails = soft.count;
-                if (
-                  soft.escalate &&
-                  shouldFallbackToVodProxy(
-                    'networkError',
-                    isVodHlsProxyUrl(videoUrl)
-                  )
-                ) {
-                  rememberPlaybackResume(video);
-                  setVodProxySlot(playbackSlotKey);
-                  return;
+                if (soft.escalate) {
+                  const nextTransport = nextVodTransportOnNetworkError(
+                    detectVodTransport(videoUrl),
+                    Boolean(readCorsApiOriginFromBrowser())
+                  );
+                  if (nextTransport) {
+                    rememberPlaybackResume(video);
+                    setVodTransport(nextTransport);
+                    setVodProxySlot(playbackSlotKey);
+                    return;
+                  }
                 }
                 if (!data.fatal) {
                   logger.debug('HLS Error:', event, data);
@@ -2031,15 +2041,17 @@ function PlayPageClient() {
                   return;
                 }
                 logger.debug('無法恢復的錯誤');
-                if (
-                  shouldFallbackToVodProxy(
-                    data.type,
-                    isVodHlsProxyUrl(videoUrl)
-                  )
-                ) {
-                  rememberPlaybackResume(video);
-                  setVodProxySlot(playbackSlotKey);
-                  return;
+                if (data.type === 'networkError') {
+                  const nextTransport = nextVodTransportOnNetworkError(
+                    detectVodTransport(videoUrl),
+                    Boolean(readCorsApiOriginFromBrowser())
+                  );
+                  if (nextTransport) {
+                    rememberPlaybackResume(video);
+                    setVodTransport(nextTransport);
+                    setVodProxySlot(playbackSlotKey);
+                    return;
+                  }
                 }
                 logger.error('無法恢復的致命錯誤，停止加載', data);
                 hls.destroy();
@@ -2536,12 +2548,16 @@ function PlayPageClient() {
         if (artPlayerRef.current.currentTime > 0) {
           return;
         }
-        if (
-          currentSourceRef.current &&
-          shouldFallbackToVodProxy('networkError', isVodHlsProxyUrl(videoUrl))
-        ) {
-          setVodProxySlot(playbackSlotKey);
-          return;
+        if (currentSourceRef.current) {
+          const nextTransport = nextVodTransportOnNetworkError(
+            detectVodTransport(videoUrl),
+            Boolean(readCorsApiOriginFromBrowser())
+          );
+          if (nextTransport) {
+            setVodTransport(nextTransport);
+            setVodProxySlot(playbackSlotKey);
+            return;
+          }
         }
         const source = currentSourceRef.current;
         const id = currentIdRef.current;
@@ -2857,6 +2873,7 @@ function PlayPageClient() {
                     onRetry={() => {
                       setPlaybackSoftError(null);
                       setVodProxySlot(null);
+                      setVodTransport('direct');
                       lastLoadedVideoUrlRef.current = '';
                       autoSwitchCountRef.current = 0;
                       playbackFailedKeysRef.current.delete(

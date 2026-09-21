@@ -4,6 +4,7 @@ import {
   HLS_APPEND_TIMEOUT_MS,
   HLS_LIVE_MAX_UNCHANGED_PLAYLIST_REFRESH,
 } from '@/lib/play-page-utils';
+import type { VodTransport } from '@/lib/vod-hls-proxy';
 
 export type PlaybackDeviceProfile = {
   isMobile: boolean;
@@ -223,27 +224,39 @@ export function getMediaSourceTypeSupported():
 
 export type PlaybackFailoverReason = 'watchdog' | 'codec' | 'hlsGiveUp';
 export type PlaybackFailoverAction =
-  { type: 'proxy' } | { type: 'switchSource' } | { type: 'giveUp' };
+  | { type: 'corsapi' }
+  | { type: 'proxy' }
+  | { type: 'switchSource' }
+  | { type: 'giveUp' };
 
 /**
  * 開片逾時／編碼不支援／HLS 已放棄之後的下一步。
- * codec 不走代理（代理改不了解碼）；watchdog 先試站內代理再換源。
+ * codec 不走代理（代理改不了解碼）。
+ * 網路問題：直連 → CORSAPI /m3u8 → 站內代理 → 換源。
  */
 export function nextPlaybackFailoverAction(options: {
   reason: PlaybackFailoverReason;
-  alreadyProxied: boolean;
+  alreadyProxied?: boolean;
+  transport?: VodTransport;
+  hasCorsApi?: boolean;
   hasNextSource: boolean;
   autoSwitchCount: number;
   autoSwitchLimit?: number;
 }): PlaybackFailoverAction {
   const limit = options.autoSwitchLimit ?? PLAYBACK_AUTO_SWITCH_LIMIT;
   const canSwitch = options.hasNextSource && options.autoSwitchCount < limit;
+  const transport: VodTransport =
+    options.transport ?? (options.alreadyProxied ? 'station' : 'direct');
 
   if (options.reason === 'codec') {
     return canSwitch ? { type: 'switchSource' } : { type: 'giveUp' };
   }
 
-  if (!options.alreadyProxied && options.reason === 'watchdog') {
+  if (transport === 'direct' && options.reason === 'watchdog') {
+    return options.hasCorsApi ? { type: 'corsapi' } : { type: 'proxy' };
+  }
+
+  if (transport === 'corsapi') {
     return { type: 'proxy' };
   }
 

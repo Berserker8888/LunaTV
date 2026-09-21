@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.5.5',
+    date: '2026-09-21',
+    content: `
+- 播放：直連失敗可先走 CORSAPI \`/m3u8\`，再降級站內 HLS 代理（設 \`NEXT_PUBLIC_CORSAPI_ORIGIN\` 或本機 \`corsApiOrigin\`）。
+- 播放：桌面點播前向緩衝加大，減少不穩網路卡頓。
+    `.trim(),
+  },
+  {
     version: 'v3.5.4',
     date: '2026-09-21',
     content: `

@@ -143,6 +143,7 @@ export default async function RootLayout({
     CUSTOM_CATEGORIES: customCategories,
     FLUID_SEARCH: fluidSearch,
     ENABLE_WEB_LIVE: enableWebLive,
+    CORSAPI_ORIGIN: process.env.NEXT_PUBLIC_CORSAPI_ORIGIN || '',
     TITLE_ALIASES: titleAliases,
   };
 

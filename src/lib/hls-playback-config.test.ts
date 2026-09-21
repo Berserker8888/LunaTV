@@ -162,6 +162,27 @@ describe('nextPlaybackFailoverAction', () => {
     ).toEqual({ type: 'proxy' });
   });
 
+  it('inserts CORSAPI between direct play and the station proxy', () => {
+    expect(
+      nextPlaybackFailoverAction({
+        reason: 'watchdog',
+        transport: 'direct',
+        hasCorsApi: true,
+        hasNextSource: true,
+        autoSwitchCount: 0,
+      })
+    ).toEqual({ type: 'corsapi' });
+    expect(
+      nextPlaybackFailoverAction({
+        reason: 'hlsGiveUp',
+        transport: 'corsapi',
+        hasCorsApi: true,
+        hasNextSource: true,
+        autoSwitchCount: 0,
+      })
+    ).toEqual({ type: 'proxy' });
+  });
+
   it('switches source after proxy still cannot start', () => {
     expect(
       nextPlaybackFailoverAction({

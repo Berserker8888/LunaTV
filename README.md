@@ -4,7 +4,7 @@
   <h1>LunaTV</h1>
   <p><strong>為繁體中文使用者優化的自架影音聚合平台</strong></p>
 
-![Version](https://img.shields.io/badge/Version-3.5.4-blue)
+![Version](https://img.shields.io/badge/Version-3.5.5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)
 ![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ed?logo=docker)
@@ -242,24 +242,25 @@ docker compose up -d
 
 ## 環境變數
 
-| 變數                       | 何時需要     | 說明                                                     |
-| -------------------------- | ------------ | -------------------------------------------------------- |
-| `USERNAME`                 | 必填         | 站長帳號                                                 |
-| `PASSWORD`                 | 必填         | 站長密碼，請用夠長且不好猜的值                           |
-| `STORAGE_TYPE`             | 強烈建議     | `kvrocks`／`redis`／`upstash`／`localstorage`            |
-| `NEXT_PUBLIC_STORAGE_TYPE` | 強烈建議     | 必須與 `STORAGE_TYPE` 相同                               |
-| `KVROCKS_URL`              | kvrocks      | 例如 `redis://kvrocks:6666`                              |
-| `REDIS_URL`                | redis        | 例如 `redis://redis:6379`                                |
-| `UPSTASH_URL`              | upstash      | Upstash HTTPS endpoint                                   |
-| `UPSTASH_TOKEN`            | upstash      | Upstash token                                            |
-| `SESSION_SECRET`           | 多使用者建議 | 登入簽章密鑰；未設則回退 `PASSWORD`                      |
-| `CRON_SECRET`              | Vercel 必填  | 保護 `/api/cron`                                         |
-| `NEXT_PUBLIC_SITE_NAME`    | 否           | 站名，預設 LunaTV                                        |
-| `ANNOUNCEMENT`             | 否           | 公告                                                     |
-| `SITE_BASE`                | HTTPS 反代   | 公開網址，例如 `https://tv.example.com`                  |
-| `COOKIE_SECURE`            | 否           | `true`／`false` 強制 cookie Secure；未設則依實際協定判斷 |
-| `TRUST_PROXY`              | HTTPS 反代   | 設 `true` 才採信 `X-Forwarded-*`。直連埠對映不要開       |
-| `BANGUMI_ACCESS_TOKEN`     | 否           | 提高 Bangumi 別名查詢額度                                |
+| 變數                         | 何時需要     | 說明                                                                                                                               |
+| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `USERNAME`                   | 必填         | 站長帳號                                                                                                                           |
+| `PASSWORD`                   | 必填         | 站長密碼，請用夠長且不好猜的值                                                                                                     |
+| `STORAGE_TYPE`               | 強烈建議     | `kvrocks`／`redis`／`upstash`／`localstorage`                                                                                      |
+| `NEXT_PUBLIC_STORAGE_TYPE`   | 強烈建議     | 必須與 `STORAGE_TYPE` 相同                                                                                                         |
+| `KVROCKS_URL`                | kvrocks      | 例如 `redis://kvrocks:6666`                                                                                                        |
+| `REDIS_URL`                  | redis        | 例如 `redis://redis:6379`                                                                                                          |
+| `UPSTASH_URL`                | upstash      | Upstash HTTPS endpoint                                                                                                             |
+| `UPSTASH_TOKEN`              | upstash      | Upstash token                                                                                                                      |
+| `SESSION_SECRET`             | 多使用者建議 | 登入簽章密鑰；未設則回退 `PASSWORD`                                                                                                |
+| `CRON_SECRET`                | Vercel 必填  | 保護 `/api/cron`                                                                                                                   |
+| `NEXT_PUBLIC_SITE_NAME`      | 否           | 站名，預設 LunaTV                                                                                                                  |
+| `ANNOUNCEMENT`               | 否           | 公告                                                                                                                               |
+| `SITE_BASE`                  | HTTPS 反代   | 公開網址，例如 `https://tv.example.com`                                                                                            |
+| `COOKIE_SECURE`              | 否           | `true`／`false` 強制 cookie Secure；未設則依實際協定判斷                                                                           |
+| `TRUST_PROXY`                | HTTPS 反代   | 設 `true` 才採信 `X-Forwarded-*`。直連埠對映不要開                                                                                 |
+| `BANGUMI_ACCESS_TOKEN`       | 否           | 提高 Bangumi 別名查詢額度                                                                                                          |
+| `NEXT_PUBLIC_CORSAPI_ORIGIN` | 否           | 自架 CORSAPI 網址，例如 `https://pz.example.com`。直連失敗時先走 `/m3u8` 再降級站內代理。瀏覽器也可設 `localStorage.corsApiOrigin` |
 
 豆瓣資料／圖片代理可在後台或本機設定調整，預設走公開 CDN。
 

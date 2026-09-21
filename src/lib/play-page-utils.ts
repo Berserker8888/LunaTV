@@ -30,9 +30,9 @@ export function getVodHlsBufferConfig(isMobile: boolean): {
         maxBufferSize: 20 * 1000 * 1000,
       }
     : {
-        maxBufferLength: 30,
-        backBufferLength: 15,
-        maxBufferSize: 40 * 1000 * 1000,
+        maxBufferLength: 45,
+        backBufferLength: 30,
+        maxBufferSize: 60 * 1000 * 1000,
       };
 }
 

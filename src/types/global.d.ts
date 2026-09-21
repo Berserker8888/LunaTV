@@ -25,6 +25,7 @@ declare global {
       CUSTOM_CATEGORIES?: any;
       FLUID_SEARCH?: boolean;
       ENABLE_WEB_LIVE?: boolean;
+      CORSAPI_ORIGIN?: string;
       TITLE_ALIASES?: Array<{ tw: string; cn: string }>;
     };
 

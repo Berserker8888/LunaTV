@@ -63,6 +63,14 @@ describe('mobile HLS buffers', () => {
       getLiveHlsBufferConfig(false).maxBufferSize
     );
   });
+
+  it('keeps a longer desktop VOD forward buffer', () => {
+    expect(getVodHlsBufferConfig(false)).toEqual({
+      maxBufferLength: 45,
+      backBufferLength: 30,
+      maxBufferSize: 60 * 1000 * 1000,
+    });
+  });
 });
 
 describe('getResultEpisodeCount', () => {
