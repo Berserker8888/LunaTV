@@ -147,8 +147,13 @@ files.forEach((file) => {
   // 按行檢測
   const lines = content.split('\n');
   lines.forEach((line, index) => {
-    // 排除單行與多行註解以避免非代碼干擾
-    const cleanLine = line.replace(/\/\/.*$|\/\*[\s\S]*?\*\//g, '').trim();
+    // 排除單行與多行註解以避免非代碼干擾。
+    // Windows 工作區是 CRLF，split('\\n') 後行尾還留著 \\r。
+    // `$` 會錨在 \\r 前面，而 `.` 又吃不了 \\r，註解因此刪不乾淨。
+    const cleanLine = line
+      .replace(/\r$/, '')
+      .replace(/\/\/.*$|\/\*[\s\S]*?\*\//g, '')
+      .trim();
 
     const foundSimplfied = [];
     for (let char of cleanLine) {

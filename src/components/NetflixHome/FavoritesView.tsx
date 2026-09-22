@@ -11,6 +11,7 @@ import {
   getAllPlayRecords,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { newEpisodeCount } from '@/lib/episode-awareness';
 import {
   type FavoriteTag,
   getAllItemTags,
@@ -37,6 +38,8 @@ export function FavoritesView() {
       currentEpisode?: number;
       search_title?: string;
       year?: string;
+      origin?: 'vod' | 'live';
+      newEpisodeCount?: number;
     }[]
   >([]);
   const [loading, setLoading] = useState(true);
@@ -76,9 +79,19 @@ export function FavoritesView() {
               year?: string;
               cover: string;
               total_episodes: number;
+              known_episodes?: number;
               source_name: string;
               search_title?: string;
+              origin?: 'vod' | 'live';
             };
+            const favoriteNew =
+              f.origin === 'live'
+                ? 0
+                : newEpisodeCount({
+                    total_episodes: f.total_episodes,
+                    known_episodes: f.known_episodes,
+                  });
+            const recordNew = playRecord ? newEpisodeCount(playRecord) : 0;
             return {
               id,
               source,
@@ -89,6 +102,8 @@ export function FavoritesView() {
               source_name: f.source_name,
               currentEpisode: playRecord?.index,
               search_title: f.search_title,
+              origin: f.origin,
+              newEpisodeCount: Math.max(favoriteNew, recordNew),
             };
           });
         if (requestId === favoriteRefreshRequestRef.current) {
@@ -290,6 +305,7 @@ export function FavoritesView() {
                   query={item.search_title}
                   {...item}
                   from='favorite'
+                  origin={item.origin}
                   type={item.episodes > 1 ? 'tv' : ''}
                 />
               </div>
@@ -313,6 +329,7 @@ export function FavoritesView() {
                   query={item.search_title}
                   {...item}
                   from='favorite'
+                  origin={item.origin}
                   type={item.episodes > 1 ? 'tv' : ''}
                 />
                 {(isEditing || editingItemKey === null) &&

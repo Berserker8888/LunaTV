@@ -4,6 +4,12 @@ import { randomUUID } from 'node:crypto';
 
 import { AdminConfig } from './admin.types';
 import type { BangumiAliasCacheEntry } from './bangumi-alias-storage';
+import {
+  acknowledgeSeenEpisodes,
+  applyDiscoveredEpisodeCount,
+  mergeSeenFavorite,
+  mergeSeenPlayRecord,
+} from './episode-awareness';
 import { KvrocksStorage } from './kvrocks.db';
 import { RedisStorage } from './redis.db';
 import {
@@ -468,23 +474,26 @@ export class DbManager {
     source: string,
     id: string,
     record: PlayRecord
-  ): Promise<void> {
+  ): Promise<PlayRecord> {
     // 每把 source+id 獨立保存。同片名去重只在 UI，這裡不刪其他源。
-    await this.runPlayRecordMutation(userName, async () => {
+    // 總集數只升不降：播放頁若還停在舊列表，不能把 cron 發現的新集蓋掉。
+    return this.runPlayRecordMutation(userName, async () => {
       const storageKey = createStorageKey(source, id);
       const existing = await this.storage.getPlayRecord(userName, storageKey);
       if (
         existing &&
         Number(existing.save_time || 0) > Number(record.save_time || 0)
       ) {
-        return;
+        return existing;
       }
 
-      await this.storage.setPlayRecord(userName, storageKey, {
+      const merged = mergeSeenPlayRecord(existing, {
         ...record,
         vod_id: id,
         source,
       });
+      await this.storage.setPlayRecord(userName, storageKey, merged);
+      return merged;
     });
   }
 
@@ -508,14 +517,15 @@ export class DbManager {
       const existing = await this.storage.getPlayRecord(userName, storageKey);
       if (!existing) return false;
 
-      const nextEpisodes = Number(patch.total_episodes);
-      if (!Number.isInteger(nextEpisodes) || nextEpisodes < 1) return false;
-      if (nextEpisodes <= Number(existing.total_episodes || 0)) return false;
+      const refreshed = applyDiscoveredEpisodeCount(
+        existing,
+        patch.total_episodes
+      );
+      if (!refreshed.changed) return false;
 
       const nextTitle = patch.title?.trim();
       await this.storage.setPlayRecord(userName, storageKey, {
-        ...existing,
-        total_episodes: nextEpisodes,
+        ...refreshed.next,
         title: nextTitle || existing.title,
         cover: patch.cover || existing.cover,
         year: patch.year || existing.year,
@@ -524,6 +534,40 @@ export class DbManager {
       });
       return true;
     });
+  }
+
+  /**
+   * 播放頁打開了目前的集數列表。只升高 known_episodes，不改觀看進度。
+   */
+  async acknowledgeEpisodeCount(
+    userName: string,
+    source: string,
+    id: string,
+    seenTotal: number
+  ): Promise<{ playRecord: PlayRecord | null; favorite: Favorite | null }> {
+    const playRecord = await this.runPlayRecordMutation(userName, async () => {
+      const storageKey = createStorageKey(source, id);
+      const existing = await this.storage.getPlayRecord(userName, storageKey);
+      if (!existing) return null;
+      const result = acknowledgeSeenEpisodes(existing, seenTotal);
+      if (!result.changed) return existing;
+      const next = { ...result.next, vod_id: existing.vod_id || id, source };
+      await this.storage.setPlayRecord(userName, storageKey, next);
+      return next;
+    });
+
+    await this.ensureMigrated();
+    const favoriteKey = createStorageKey(source, id);
+    let favorite = await this.storage.getFavorite(userName, favoriteKey);
+    if (favorite && favorite.origin !== 'live') {
+      const result = acknowledgeSeenEpisodes(favorite, seenTotal);
+      if (result.changed) {
+        favorite = result.next;
+        await this.storage.setFavorite(userName, favoriteKey, favorite);
+      }
+    }
+
+    return { playRecord, favorite };
   }
 
   async getAllPlayRecords(userName: string): Promise<{
@@ -615,10 +659,48 @@ export class DbManager {
     source: string,
     id: string,
     favorite: Favorite
-  ): Promise<void> {
+  ): Promise<Favorite> {
     await this.ensureMigrated();
     const key = generateStorageKey(source, id);
-    await this.storage.setFavorite(userName, key, favorite);
+    const existing = await this.storage.getFavorite(userName, key);
+    const merged = mergeSeenFavorite(existing, favorite);
+    await this.storage.setFavorite(userName, key, merged);
+    return merged;
+  }
+
+  /**
+   * Cron 發現收藏的片源多了集數。不把這次發現當成使用者已看過。
+   */
+  async refreshFavoriteEpisodeCount(
+    userName: string,
+    source: string,
+    id: string,
+    patch: {
+      total_episodes: number;
+      title?: string;
+      cover?: string;
+      year?: string;
+    }
+  ): Promise<boolean> {
+    await this.ensureMigrated();
+    const key = generateStorageKey(source, id);
+    const existing = await this.storage.getFavorite(userName, key);
+    if (!existing || existing.origin === 'live') return false;
+
+    const refreshed = applyDiscoveredEpisodeCount(
+      existing,
+      patch.total_episodes
+    );
+    if (!refreshed.changed) return false;
+
+    const title = patch.title?.trim();
+    await this.storage.setFavorite(userName, key, {
+      ...refreshed.next,
+      title: title || existing.title,
+      cover: patch.cover || existing.cover,
+      year: patch.year || existing.year,
+    });
+    return true;
   }
 
   async getAllFavorites(

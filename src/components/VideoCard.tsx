@@ -33,6 +33,7 @@ import { useLongPress } from '@/hooks/useLongPress';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 import MobileActionSheet from '@/components/MobileActionSheet';
+import { NewEpisodeBadge } from '@/components/NewEpisodeBadge';
 import { useToast } from '@/components/ToastProvider';
 import {
   AggregateSourcesIndicator,
@@ -61,6 +62,8 @@ export interface VideoCardProps {
   isBangumi?: boolean;
   isAggregate?: boolean;
   origin?: 'vod' | 'live';
+  /** 大於 0 時在海報上顯示「有新集」。搜尋結果不要傳。 */
+  newEpisodeCount?: number;
 }
 
 export type VideoCardHandle = {
@@ -92,6 +95,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       isBangumi = false,
       isAggregate = false,
       origin = 'vod',
+      newEpisodeCount = 0,
     }: VideoCardProps,
     ref
   ) {
@@ -890,6 +894,13 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
                   </button>
                 )}
               </div>
+            )}
+
+            {newEpisodeCount > 0 && origin !== 'live' && (
+              <NewEpisodeBadge
+                count={newEpisodeCount}
+                className='absolute bottom-2 left-2 z-20'
+              />
             )}
 
             {/* 年份徽章 */}

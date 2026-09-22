@@ -12,6 +12,7 @@ import {
   warmBangumiAliases,
 } from '@/lib/bangumi-alias-cache';
 import {
+  acknowledgeEpisodeCount,
   deleteSkipConfig,
   generateStorageKey,
   getAllPlayRecords,
@@ -262,6 +263,26 @@ function PlayPageClient() {
 
   const currentSourceRef = useRef(currentSource);
   const currentIdRef = useRef(currentId);
+  const acknowledgedEpisodeTokenRef = useRef('');
+  const detailSource = detail?.source || '';
+  const detailId = detail?.id || '';
+  const detailEpisodeCount = detail?.episodes?.length || 0;
+  useEffect(() => {
+    if (!detailSource || !detailId || detailEpisodeCount < 1) return;
+    const token = `${detailSource}+${detailId}:${detailEpisodeCount}`;
+    if (acknowledgedEpisodeTokenRef.current === token) return;
+    let cancelled = false;
+    void acknowledgeEpisodeCount(
+      detailSource,
+      detailId,
+      detailEpisodeCount
+    ).then((ok) => {
+      if (!cancelled && ok) acknowledgedEpisodeTokenRef.current = token;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailEpisodeCount, detailId, detailSource]);
   const videoTitleRef = useRef(videoTitle);
   const initialVideoTitleRef = useRef<string>(
     (() => {

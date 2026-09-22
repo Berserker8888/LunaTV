@@ -3,8 +3,11 @@
 import { CirclePlay, ListVideo, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { hasNewEpisodes, newEpisodeCount } from '@/lib/episode-awareness';
 import { buildPlayUrl } from '@/lib/play-url';
 import { formatYear } from '@/lib/utils';
+
+import { NewEpisodeBadge } from '@/components/NewEpisodeBadge';
 
 import { ContinueWatchingCover } from './ContinueWatchingCover';
 import { PosterImage } from './PosterImage';
@@ -29,6 +32,7 @@ interface HeroRecord {
   total_episodes?: number;
   play_time?: number;
   total_time?: number;
+  known_episodes?: number;
   search_title?: string;
   url?: string;
 }
@@ -122,6 +126,9 @@ export function HeroResume({
 
             <div className='mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-300'>
               <span className='font-semibold tabular-nums'>{episodeLabel}</span>
+              {hasNewEpisodes(item) && (
+                <NewEpisodeBadge count={newEpisodeCount(item)} />
+              )}
               {yearLabel && (
                 <>
                   <span aria-hidden='true' className='text-zinc-600'>

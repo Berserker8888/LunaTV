@@ -8,6 +8,7 @@ import { getTrippedSources } from '@/lib/source-circuit-breaker';
 import { getSourceHealthSnapshots } from '@/lib/source-health';
 import { getLastValidationResults } from '@/lib/source-validation';
 import { getStorageRuntimeStatus } from '@/lib/storage-runtime';
+import { isTmdbConfigured } from '@/lib/tmdb';
 import { CURRENT_VERSION } from '@/lib/version';
 
 export const runtime = 'nodejs';
@@ -57,6 +58,9 @@ export async function GET(request: NextRequest) {
         missing: storage.missing,
       },
       cron,
+      integrations: {
+        tmdb: isTmdbConfigured(),
+      },
       sources: {
         total: sourceCount,
         enabled: enabledSourceCount,

@@ -96,7 +96,9 @@ export async function POST(request: NextRequest) {
         record.total_time > 0 &&
         record.play_time > record.total_time + 5) ||
       (record.save_time !== undefined &&
-        (!Number.isFinite(record.save_time) || record.save_time <= 0))
+        (!Number.isFinite(record.save_time) || record.save_time <= 0)) ||
+      (record.known_episodes !== undefined &&
+        (!Number.isInteger(record.known_episodes) || record.known_episodes < 1))
     ) {
       return NextResponse.json(
         { error: 'Invalid record data' },
@@ -119,9 +121,9 @@ export async function POST(request: NextRequest) {
       save_time: record.save_time ?? Date.now(),
     } as PlayRecord;
 
-    await db.savePlayRecord(username, source, id, finalRecord);
+    const saved = await db.savePlayRecord(username, source, id, finalRecord);
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json({ success: true, record: saved }, { status: 200 });
   } catch (err) {
     console.error('儲存播放記錄失敗', err);
     return NextResponse.json(

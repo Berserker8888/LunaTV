@@ -4,7 +4,7 @@
   <h1>LunaTV</h1>
   <p><strong>為繁體中文使用者優化的自架影音聚合平台</strong></p>
 
-![Version](https://img.shields.io/badge/Version-3.5.5-blue)
+![Version](https://img.shields.io/badge/Version-3.6.0-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)
 ![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ed?logo=docker)
@@ -53,7 +53,8 @@
 
 - **多源搜尋**：一次查已啟用的 CMS／VOD；繁簡轉換、台譯／陸源片名橋接、長標題與 `～`／`×` 等副標拆分
 - **追劇播放**：ArtPlayer + hls.js；跳過片頭片尾、斷點續播、自動連播、換源接續進度；直連失敗會改走站內 HLS 代理再試
-- **集數追更**：進播放頁背景刷新詳情；最後一集再按下一集會向詳情 API 確認是否有新集
+- **集數追更**：排程發現新集後，首頁繼續觀看、收藏與觀看紀錄會標「有新集」；進播放頁看到最新列表後標記消掉。最後一集再按下一集仍會向詳情 API 確認
+- **繁中資料**：設定 `TMDB_API_KEY` 後，播放頁補上繁中簡介、評分、類型、導演與演員。沒設金鑰或對不上時不影響播放
 - **探索**：豆瓣電影／劇集／綜藝、Bangumi 每日放送
 - **IPTV**：匯入 M3U、頻道分組、XMLTV 節目單（網頁直播可在後台開關）
 - **同步**：觀看紀錄、收藏、搜尋歷史可跨裝置（Kvrocks／Redis／Upstash）
@@ -260,6 +261,7 @@ docker compose up -d
 | `COOKIE_SECURE`              | 否           | `true`／`false` 強制 cookie Secure；未設則依實際協定判斷                                                                           |
 | `TRUST_PROXY`                | HTTPS 反代   | 設 `true` 才採信 `X-Forwarded-*`。直連埠對映不要開                                                                                 |
 | `BANGUMI_ACCESS_TOKEN`       | 否           | 提高 Bangumi 別名查詢額度                                                                                                          |
+| `TMDB_API_KEY`               | 否           | TMDB v3 金鑰或 v4 讀取權杖。播放頁用來補繁中簡介、評分、導演與演員；未設則略過                                                     |
 | `NEXT_PUBLIC_CORSAPI_ORIGIN` | 否           | 自架 CORSAPI 網址，例如 `https://pz.example.com`。直連失敗時先走 `/m3u8` 再降級站內代理。瀏覽器也可設 `localStorage.corsApiOrigin` |
 
 豆瓣資料／圖片代理可在後台或本機設定調整，預設走公開 CDN。

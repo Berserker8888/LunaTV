@@ -106,7 +106,10 @@ export async function POST(request: NextRequest) {
       !isValidApiTextParam(favorite.title) ||
       !isValidApiTextParam(favorite.source_name) ||
       (favorite.save_time !== undefined &&
-        (!Number.isFinite(favorite.save_time) || favorite.save_time <= 0))
+        (!Number.isFinite(favorite.save_time) || favorite.save_time <= 0)) ||
+      (favorite.known_episodes !== undefined &&
+        (!Number.isInteger(favorite.known_episodes) ||
+          favorite.known_episodes < 1))
     ) {
       return NextResponse.json(
         { error: 'Invalid favorite data' },
@@ -128,9 +131,12 @@ export async function POST(request: NextRequest) {
       save_time: favorite.save_time ?? Date.now(),
     } as Favorite;
 
-    await db.saveFavorite(username, source, id, finalFavorite);
+    const saved = await db.saveFavorite(username, source, id, finalFavorite);
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json(
+      { success: true, favorite: saved },
+      { status: 200 }
+    );
   } catch (err) {
     console.error('儲存收藏失敗', err);
     return NextResponse.json(

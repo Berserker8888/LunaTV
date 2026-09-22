@@ -83,6 +83,8 @@ export interface PlayRecord {
   total_time: number; // 總進度（秒）
   save_time: number; // 記錄儲存時間（時間戳）
   search_title?: string; // 搜索時使用的標題
+  /** 使用者上次看到的總集數。小於 total_episodes 時顯示有新集。 */
+  known_episodes?: number;
   id?: string;
   vod_id?: string;
   source?: string;
@@ -119,6 +121,8 @@ export interface Favorite {
   save_time: number;
   search_title?: string;
   origin?: 'vod' | 'live';
+  /** 使用者上次看到的總集數。小於 total_episodes 時顯示有新集。 */
+  known_episodes?: number;
 }
 
 // ---- 常量 ----

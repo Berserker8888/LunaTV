@@ -6,6 +6,15 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.0',
+    date: '2026-09-22',
+    content: `
+- 首頁：繼續觀看、收藏與觀看紀錄在片源多了集數時顯示「有新集」。打開播放頁看到最新列表後標記會消掉。
+- 播放：設定 \`TMDB_API_KEY\` 後，播放頁補上繁中簡介、評分、類型、導演與演員。對不上或沒設金鑰時不影響播放。
+- 播放：進度存檔不再把排程已發現的較新集數蓋回舊數字。收藏追更會保留原本的來源標記。
+    `.trim(),
+  },
+  {
     version: 'v3.5.5',
     date: '2026-09-21',
     content: `

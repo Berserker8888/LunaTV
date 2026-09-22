@@ -15,6 +15,25 @@ import {
   STORAGE_TYPE,
   triggerGlobalError,
 } from './shared';
+import { mergeSeenPlayRecord } from '../episode-awareness';
+
+function rememberPlayRecord(
+  records: Record<string, PlayRecord> | null | undefined,
+  key: string,
+  record: PlayRecord
+): Record<string, PlayRecord> {
+  const existing = records?.[key] || null;
+  if (
+    existing &&
+    Number(existing.save_time || 0) > Number(record.save_time || 0)
+  ) {
+    return records ? { ...records } : {};
+  }
+  return {
+    ...(records || {}),
+    [key]: mergeSeenPlayRecord(existing, record),
+  };
+}
 
 /**
  * 儲存播放進度後，最短多久才允許再次向伺服器重抓整份播放紀錄。
@@ -111,8 +130,7 @@ export function savePlayRecordOnPageExit(
       const allRecords = raw
         ? (JSON.parse(raw) as Record<string, PlayRecord>)
         : {};
-      const nextRecords = { ...allRecords };
-      nextRecords[key] = enrichedRecord;
+      const nextRecords = rememberPlayRecord(allRecords, key, enrichedRecord);
       localStorage.setItem(PLAY_RECORDS_KEY, JSON.stringify(nextRecords));
       window.dispatchEvent(
         new CustomEvent('playRecordsUpdated', {
@@ -124,8 +142,11 @@ export function savePlayRecordOnPageExit(
 
     const cachedRecords = cacheManager.getCachedPlayRecords();
     if (cachedRecords) {
-      const nextCachedRecords = { ...cachedRecords };
-      nextCachedRecords[key] = enrichedRecord;
+      const nextCachedRecords = rememberPlayRecord(
+        cachedRecords,
+        key,
+        enrichedRecord
+      );
       cacheManager.cachePlayRecords(nextCachedRecords);
       window.dispatchEvent(
         new CustomEvent('playRecordsUpdated', {
@@ -181,13 +202,21 @@ export async function savePlayRecord(
     // （這正是先前修「集數永不更新」時要保住的行為）。單純的播放進度心跳
     // 則不需要每次都把整份清單重抓一遍。
     const previousRecord = cachedRecords?.[key];
+    const mergedRecord = mergeSeenPlayRecord(
+      previousRecord || null,
+      enrichedRecord
+    );
     const episodeChanged =
       !previousRecord ||
-      previousRecord.index !== enrichedRecord.index ||
-      previousRecord.total_episodes !== enrichedRecord.total_episodes;
+      previousRecord.index !== mergedRecord.index ||
+      previousRecord.total_episodes !== mergedRecord.total_episodes ||
+      previousRecord.known_episodes !== mergedRecord.known_episodes;
     if (cachedRecords) {
-      const nextCachedRecords = { ...cachedRecords };
-      nextCachedRecords[key] = enrichedRecord;
+      const nextCachedRecords = rememberPlayRecord(
+        cachedRecords,
+        key,
+        enrichedRecord
+      );
       cacheManager.cachePlayRecords(nextCachedRecords);
       window.dispatchEvent(
         new CustomEvent('playRecordsUpdated', {
@@ -198,13 +227,27 @@ export async function savePlayRecord(
 
     // 先同步到資料庫。只有這一步失敗才代表播放紀錄沒有儲存成功。
     try {
-      await fetchWithAuth('/api/playrecords', {
+      const response = await fetchWithAuth('/api/playrecords', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ key, record: enrichedRecord }),
       });
+      const payload = (await response.json().catch(() => null)) as {
+        record?: PlayRecord;
+      } | null;
+      const latest = cacheManager.getCachedPlayRecords();
+      // 快取還沒建立時不要只寫入這一筆，否則首頁會以為其他紀錄都不見了。
+      if (payload?.record && latest) {
+        const next = { ...latest, [key]: payload.record };
+        cacheManager.cachePlayRecords(next);
+        window.dispatchEvent(
+          new CustomEvent('playRecordsUpdated', {
+            detail: next,
+          })
+        );
+      }
     } catch (err) {
       // 若 POST 失敗且有先前快取，rollback 至原始狀態
       if (prevRecords) {
@@ -262,8 +305,7 @@ export async function savePlayRecord(
 
   try {
     const allRecords = await getAllPlayRecords();
-    const nextRecords = { ...allRecords };
-    nextRecords[key] = enrichedRecord;
+    const nextRecords = rememberPlayRecord(allRecords, key, enrichedRecord);
     localStorage.setItem(PLAY_RECORDS_KEY, JSON.stringify(nextRecords));
     window.dispatchEvent(
       new CustomEvent('playRecordsUpdated', {

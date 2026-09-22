@@ -8,6 +8,7 @@
 export { fetchWithAuth, generateStorageKey } from './db-client/api';
 export { cacheManager } from './db-client/cache';
 export * from './db-client/cache-sync';
+export * from './db-client/episode-seen';
 export * from './db-client/favorites';
 export * from './db-client/play-records';
 export * from './db-client/search-history';

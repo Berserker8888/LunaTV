@@ -6,12 +6,14 @@ export interface PlayRecord {
   source_name: string;
   cover: string;
   year: string;
-  index: number; // 第几集
-  total_episodes: number; // 总集数
-  play_time: number; // 播放进度（秒）
-  total_time: number; // 总进度（秒）
+  index: number; // 第幾集
+  total_episodes: number; // 總集數
+  play_time: number; // 播放進度（秒）
+  total_time: number; // 總時長（秒）
   save_time: number; // 記錄儲存時間（時間戳）
   search_title: string; // 搜尋時使用的標題
+  /** 使用者上次看到的總集數。小於 total_episodes 時首頁顯示有新集。 */
+  known_episodes?: number;
   vod_id?: string;
   source?: string;
 }
@@ -19,16 +21,18 @@ export interface PlayRecord {
 // 收藏資料結構
 export interface Favorite {
   source_name: string;
-  total_episodes: number; // 总集数
+  total_episodes: number; // 總集數
   title: string;
   year: string;
   cover: string;
   save_time: number; // 記錄儲存時間（時間戳）
   search_title: string; // 搜尋時使用的標題
   origin?: 'vod' | 'live';
+  /** 使用者上次看到的總集數。小於 total_episodes 時收藏顯示有新集。 */
+  known_episodes?: number;
 }
 
-// 存储接口
+// 儲存介面
 export interface IStorage {
   // 可選的跨實例互斥鎖；Redis 類儲存實作，localStorage/noop 不實作。
   acquireLock?(
@@ -39,7 +43,7 @@ export interface IStorage {
   renewLock?(key: string, ownerToken: string, ttlMs: number): Promise<boolean>;
   releaseLock?(key: string, ownerToken: string): Promise<boolean>;
 
-  // 播放記錄相关
+  // 播放記錄相關
   getPlayRecord(userName: string, key: string): Promise<PlayRecord | null>;
   setPlayRecord(
     userName: string,
@@ -64,7 +68,7 @@ export interface IStorage {
   checkUserExist(userName: string): Promise<boolean>;
   // 修改使用者密碼
   changePassword(userName: string, newPassword: string): Promise<void>;
-  // 刪除使用者（包括密码、搜索历史、播放記錄、收藏夹）
+  // 刪除使用者（包括密碼、搜尋歷史、播放記錄、收藏夾）
   deleteUser(userName: string): Promise<void>;
 
   // 搜尋歷史相關
@@ -72,7 +76,7 @@ export interface IStorage {
   addSearchHistory(userName: string, keyword: string): Promise<void>;
   deleteSearchHistory(userName: string, keyword?: string): Promise<void>;
 
-  // 用户列表
+  // 使用者列表
   getAllUsers(): Promise<string[]>;
 
   // 管理員設定相關
@@ -104,7 +108,7 @@ export interface IStorage {
   clearAllData(): Promise<void>;
 }
 
-// 搜索结果資料結構
+// 搜尋結果資料結構
 export interface SearchResult {
   id: string;
   title: string;
@@ -138,9 +142,9 @@ export interface DoubanResult {
   list: DoubanItem[];
 }
 
-// 跳过片头片尾設定資料結構
+// 跳過片頭片尾設定資料結構
 export interface SkipConfig {
-  enable: boolean; // 是否启用跳过片头片尾
-  intro_time: number; // 片头时间（秒）
-  outro_time: number; // 片尾时间（秒）
+  enable: boolean; // 是否啟用跳過片頭片尾
+  intro_time: number; // 片頭時間（秒）
+  outro_time: number; // 片尾時間（秒）
 }

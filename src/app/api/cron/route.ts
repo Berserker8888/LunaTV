@@ -441,16 +441,18 @@ async function refreshRecordAndFavorites(deadline: number) {
             }
 
             const favEpisodeCount = favDetail.episodes?.length || 0;
-            if (favEpisodeCount > Number(fav.total_episodes || 0)) {
-              await db.saveFavorite(user, source, id, {
+            const updatedFavorite = await db.refreshFavoriteEpisodeCount(
+              user,
+              source,
+              id,
+              {
                 title: favDetail.title || fav.title,
-                source_name: fav.source_name,
                 cover: favDetail.poster || fav.cover,
                 year: favDetail.year || fav.year,
                 total_episodes: favEpisodeCount,
-                save_time: fav.save_time,
-                search_title: fav.search_title,
-              });
+              }
+            );
+            if (updatedFavorite) {
               logger.info(
                 `更新收藏: ${fav.title} (${fav.total_episodes} -> ${favEpisodeCount})`
               );

@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BangumiCalendarData } from '@/lib/bangumi.client';
 import type { PlayRecord } from '@/lib/db.client';
 import { clearAllPlayRecords, deletePlayRecord } from '@/lib/db.client';
+import { hasNewEpisodes, newEpisodeCount } from '@/lib/episode-awareness';
 import {
   deduplicatePlayRecordList,
   hydratePlayRecord,
@@ -29,6 +30,7 @@ import { DoubanItem } from '@/lib/types';
 import { useClientValue } from '@/hooks/useClientMount';
 
 import MobileBottomNav from '@/components/MobileBottomNav';
+import { NewEpisodeBadge } from '@/components/NewEpisodeBadge';
 import SearchSuggestions from '@/components/SearchSuggestions';
 import Sidebar from '@/components/Sidebar';
 import { useSite } from '@/components/SiteProvider';
@@ -107,6 +109,8 @@ export default function NetflixHome({
   );
   const heroRecord = orderedContinueWatching[0];
   const remainingContinueWatching = orderedContinueWatching.slice(1);
+  const remainingNewEpisodeCount =
+    remainingContinueWatching.filter(hasNewEpisodes).length;
 
   // 補圖成功後寫回紀錄，hero 與下方列表共用；下次渲染就直接有封面。
   const applyResolvedCover = useCallback((item: any, poster: string) => {
@@ -349,6 +353,11 @@ export default function NetflixHome({
                       <span className='text-xs text-zinc-500 tabular-nums shrink-0'>
                         {remainingContinueWatching.length}
                       </span>
+                      {remainingNewEpisodeCount > 0 && (
+                        <span className='text-xs font-medium text-amber-300 shrink-0'>
+                          {remainingNewEpisodeCount} 部有新集
+                        </span>
+                      )}
                     </div>
                     <button
                       type='button'
@@ -447,6 +456,12 @@ export default function NetflixHome({
                                       applyResolvedCover(item, poster)
                                     }
                                   />
+                                  {hasNewEpisodes(item) && (
+                                    <NewEpisodeBadge
+                                      count={newEpisodeCount(item)}
+                                      className='absolute top-2 left-2 z-30'
+                                    />
+                                  )}
                                   {/* 懸停播放提示 */}
                                   <div className='pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors'>
                                     <CirclePlay className='w-10 h-10 text-white opacity-0 group-hover:opacity-95 drop-shadow-lg transition-opacity' />

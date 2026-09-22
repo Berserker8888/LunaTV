@@ -14,6 +14,7 @@ import {
   STORAGE_TYPE,
   triggerGlobalError,
 } from './shared';
+import { mergeSeenFavorite } from '../episode-awareness';
 // ---------------- 收藏相關 API ----------------
 
 /**
@@ -98,7 +99,10 @@ export async function saveFavorite(
     // （delete 路徑在 d4ef76f 已因同樣理由改成複製後再刪。）
     const cachedFavorites = cacheManager.getCachedFavorites() || {};
     const prevFavorites = { ...cachedFavorites };
-    const nextFavorites = { ...cachedFavorites, [key]: favorite };
+    const nextFavorites = {
+      ...cachedFavorites,
+      [key]: mergeSeenFavorite(cachedFavorites[key] || null, favorite),
+    };
     cacheManager.cacheFavorites(nextFavorites);
 
     // 触發立即更新事件
@@ -110,13 +114,26 @@ export async function saveFavorite(
 
     // 異步同步到數據庫
     try {
-      await fetchWithAuth('/api/favorites', {
+      const response = await fetchWithAuth('/api/favorites', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ key, favorite }),
       });
+      const payload = (await response.json().catch(() => null)) as {
+        favorite?: Favorite;
+      } | null;
+      const latest = cacheManager.getCachedFavorites();
+      if (payload?.favorite && latest) {
+        const confirmed = { ...latest, [key]: payload.favorite };
+        cacheManager.cacheFavorites(confirmed);
+        window.dispatchEvent(
+          new CustomEvent('favoritesUpdated', {
+            detail: confirmed,
+          })
+        );
+      }
     } catch (err) {
       cacheManager.cacheFavorites(prevFavorites);
       window.dispatchEvent(
@@ -139,11 +156,14 @@ export async function saveFavorite(
 
   try {
     const allFavorites = await getAllFavorites();
-    allFavorites[key] = favorite;
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
+    const nextFavorites = {
+      ...allFavorites,
+      [key]: mergeSeenFavorite(allFavorites[key] || null, favorite),
+    };
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(nextFavorites));
     window.dispatchEvent(
       new CustomEvent('favoritesUpdated', {
-        detail: allFavorites,
+        detail: nextFavorites,
       })
     );
   } catch (err) {

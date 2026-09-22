@@ -35,6 +35,9 @@ interface HealthData {
     lastSuccessAt: string | null;
     lastError: string | null;
   };
+  integrations?: {
+    tmdb: boolean;
+  };
   sources: {
     total: number;
     enabled: number;
@@ -186,6 +189,9 @@ export default function AdminHealthPage() {
                     <Server size={17} /> 版本
                   </div>
                   <p className='mt-2 text-lg font-semibold'>{data.version}</p>
+                  <p className='text-xs text-zinc-500'>
+                    TMDB {data.integrations?.tmdb ? '已設定' : '未設定'}
+                  </p>
                 </div>
                 <div>
                   <div className='flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400'>

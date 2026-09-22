@@ -14,6 +14,7 @@ import {
   getAllPlayRecords,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { hasNewEpisodes, newEpisodeCount } from '@/lib/episode-awareness';
 import {
   deduplicatePlayRecordList,
   getPlayRecordKeysByIdentity,
@@ -24,6 +25,7 @@ import { parseStorageKey } from '@/lib/storage-key';
 import { getProxiedImageUrl, processImageUrl } from '@/lib/utils';
 import { calculateWatchStats, formatWatchTime } from '@/lib/watch-stats';
 
+import { NewEpisodeBadge } from '@/components/NewEpisodeBadge';
 import PageLayout from '@/components/PageLayout';
 import { useToast } from '@/components/ToastProvider';
 
@@ -612,12 +614,15 @@ export default function HistoryPage() {
                     {/* 進度：加粗一點，方便一眼看出「看到哪」 */}
                     <div className='mt-2'>
                       <div className='flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1'>
-                        <span>
+                        <span className='inline-flex items-center gap-2'>
                           {record.index > 0 && record.total_episodes > 0
                             ? `第 ${record.index} / ${record.total_episodes} 集`
                             : record.total_episodes > 1
                               ? `${record.total_episodes} 集`
                               : '進度'}
+                          {hasNewEpisodes(record) && (
+                            <NewEpisodeBadge count={newEpisodeCount(record)} />
+                          )}
                         </span>
                         <span className='tabular-nums text-zinc-400'>
                           {progress > 0 ? `${progress}%` : '未開始'}

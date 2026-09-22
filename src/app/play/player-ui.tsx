@@ -1,13 +1,14 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { SearchResult } from '@/lib/types';
 import { formatYear, getProxiedImageUrl, processImageUrl } from '@/lib/utils';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 
 import { FavoriteIcon } from './FavoriteIcon';
+import { TmdbFacts } from './tmdb-facts';
 
 /** 跳過片頭/片尾浮動按鈕 */
 export function SkipButton({
@@ -307,7 +308,18 @@ export function VideoDetailsPanel({
 }) {
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const [descExpanded, setDescExpanded] = useState(false);
-  const coverImgError = Boolean(videoCover && failedCover === videoCover);
+  const [tmdbPoster, setTmdbPoster] = useState('');
+  const tmdbPosterKey = `${videoTitle}|${detail?.id || ''}|${detail?.source || ''}`;
+  const [shownTmdbPosterKey, setShownTmdbPosterKey] = useState(tmdbPosterKey);
+  if (shownTmdbPosterKey !== tmdbPosterKey) {
+    setShownTmdbPosterKey(tmdbPosterKey);
+    setTmdbPoster('');
+  }
+  const displayCover = videoCover || tmdbPoster;
+  const handleTmdbPoster = useCallback((posterUrl: string) => {
+    setTmdbPoster(posterUrl);
+  }, []);
+  const coverImgError = Boolean(displayCover && failedCover === displayCover);
 
   const desc = detail?.desc?.trim() || '';
   // 以「字元」計數與截斷，避免 emoji／罕用字被 slice 劈成破字
@@ -373,27 +385,37 @@ export function VideoDetailsPanel({
               )}
             </div>
           )}
+          <TmdbFacts
+            key={`${videoTitle}|${detail?.id || ''}|${detail?.source || ''}`}
+            title={videoTitle}
+            year={formatYear(detail?.year || videoYear)}
+            episodes={detail?.episodes?.length}
+            typeName={detail?.type_name}
+            category={detail?.class}
+            sourceOverview={desc}
+            onPoster={handleTmdbPoster}
+          />
         </div>
       </div>
 
       <div className='hidden md:block md:col-span-1 md:order-first'>
         <div className='p-5 pr-2'>
           <div className='relative bg-zinc-800 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden ring-1 ring-white/10 max-w-[200px]'>
-            {videoCover && !coverImgError ? (
+            {displayCover && !coverImgError ? (
               <>
                 <img
-                  src={processImageUrl(videoCover)}
+                  src={processImageUrl(displayCover)}
                   alt={videoTitle}
                   className='w-full h-full object-cover'
                   referrerPolicy='no-referrer'
                   onError={(e) => {
                     const img = e.currentTarget;
-                    if (!img.dataset.retried && videoCover) {
+                    if (!img.dataset.retried && displayCover) {
                       img.dataset.retried = 'true';
-                      img.src = getProxiedImageUrl(videoCover);
+                      img.src = getProxiedImageUrl(displayCover);
                       return;
                     }
-                    setFailedCover(videoCover);
+                    setFailedCover(displayCover);
                   }}
                 />
                 {videoDoubanId !== 0 && (
