@@ -6,6 +6,15 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.1',
+    date: '2026-09-22',
+    content: `
+- 播放：詳情標題、分類與簡介改顯示繁中。TMDB 有繁中或簡中簡介時，播放頁改用這段繁中簡介。
+- 播放：劇集不再因為季度年份和系列首播年不同就對不上 TMDB。
+- 播放：TMDB 金鑰改在容器啟動時讀取，避免映像建置當下沒有金鑰就永遠讀不到。
+    `.trim(),
+  },
+  {
     version: 'v3.6.0',
     date: '2026-09-22',
     content: `

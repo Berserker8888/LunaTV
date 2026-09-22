@@ -3,6 +3,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { toDisplayLanguage } from '@/lib/chinese';
 import { SearchResult } from '@/lib/types';
 import { formatYear, getProxiedImageUrl, processImageUrl } from '@/lib/utils';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
@@ -309,21 +310,28 @@ export function VideoDetailsPanel({
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const [descExpanded, setDescExpanded] = useState(false);
   const [tmdbPoster, setTmdbPoster] = useState('');
+  const [tmdbOverview, setTmdbOverview] = useState('');
   const tmdbPosterKey = `${videoTitle}|${detail?.id || ''}|${detail?.source || ''}`;
   const [shownTmdbPosterKey, setShownTmdbPosterKey] = useState(tmdbPosterKey);
   if (shownTmdbPosterKey !== tmdbPosterKey) {
     setShownTmdbPosterKey(tmdbPosterKey);
     setTmdbPoster('');
+    setTmdbOverview('');
   }
   const displayCover = videoCover || tmdbPoster;
+  const displayTitle = toDisplayLanguage(videoTitle) || '影片標題';
   const handleTmdbPoster = useCallback((posterUrl: string) => {
     setTmdbPoster(posterUrl);
   }, []);
+  const handleTmdbOverview = useCallback((overview: string) => {
+    setTmdbOverview(overview);
+  }, []);
   const coverImgError = Boolean(displayCover && failedCover === displayCover);
 
-  const desc = detail?.desc?.trim() || '';
+  const desc = toDisplayLanguage(detail?.desc?.trim() || '');
+  const synopsis = tmdbOverview.trim() || desc;
   // 以「字元」計數與截斷，避免 emoji／罕用字被 slice 劈成破字
-  const descChars = useMemo(() => Array.from(desc), [desc]);
+  const descChars = useMemo(() => Array.from(synopsis), [synopsis]);
   const descIsLong = descChars.length > DESC_COLLAPSE_LENGTH;
   const shownDesc =
     descIsLong && !descExpanded
@@ -335,9 +343,7 @@ export function VideoDetailsPanel({
       <div className='md:col-span-3'>
         <div className='p-5 sm:p-6 flex flex-col min-h-0'>
           <h2 className='text-xl sm:text-2xl font-bold mb-3 tracking-wide flex items-center flex-shrink-0 text-zinc-100'>
-            <span className='min-w-0 line-clamp-2'>
-              {videoTitle || '影片標題'}
-            </span>
+            <span className='min-w-0 line-clamp-2'>{displayTitle}</span>
             <button
               type='button'
               onClick={(e) => {
@@ -353,7 +359,9 @@ export function VideoDetailsPanel({
 
           <div className='flex flex-wrap items-center gap-2 sm:gap-3 text-sm mb-4 text-zinc-400 flex-shrink-0'>
             {detail?.class && (
-              <span className='text-accent font-semibold'>{detail.class}</span>
+              <span className='text-accent font-semibold'>
+                {toDisplayLanguage(detail.class)}
+              </span>
             )}
             {formatYear(detail?.year || videoYear) && (
               <span className='tabular-nums'>
@@ -368,10 +376,12 @@ export function VideoDetailsPanel({
                 {detail.source_name}
               </span>
             )}
-            {detail?.type_name && <span>{detail.type_name}</span>}
+            {detail?.type_name && (
+              <span>{toDisplayLanguage(detail.type_name)}</span>
+            )}
           </div>
 
-          {desc && (
+          {synopsis && (
             <div className='text-sm sm:text-base leading-relaxed text-zinc-300 flex-1 min-h-0'>
               <p style={{ whiteSpace: 'pre-line' }}>{shownDesc}</p>
               {descIsLong && (
@@ -392,8 +402,9 @@ export function VideoDetailsPanel({
             episodes={detail?.episodes?.length}
             typeName={detail?.type_name}
             category={detail?.class}
-            sourceOverview={desc}
+            sourceOverview={synopsis}
             onPoster={handleTmdbPoster}
+            onOverview={handleTmdbOverview}
           />
         </div>
       </div>
@@ -405,7 +416,7 @@ export function VideoDetailsPanel({
               <>
                 <img
                   src={processImageUrl(displayCover)}
-                  alt={videoTitle}
+                  alt={displayTitle}
                   className='w-full h-full object-cover'
                   referrerPolicy='no-referrer'
                   onError={(e) => {

@@ -11,6 +11,7 @@ import {
   getCachedBangumiAliases,
   warmBangumiAliases,
 } from '@/lib/bangumi-alias-cache';
+import { toDisplayLanguage } from '@/lib/chinese';
 import {
   acknowledgeEpisodeCount,
   deleteSkipConfig,
@@ -2779,15 +2780,17 @@ function PlayPageClient() {
         <div className='py-1 flex flex-wrap items-center gap-2 min-w-0 pr-16 md:pr-24'>
           <h1
             className='text-lg sm:text-xl font-semibold text-zinc-100 min-w-0 truncate'
-            title={videoTitle || '影片標題'}
+            title={toDisplayLanguage(videoTitle) || '影片標題'}
           >
-            {videoTitle || '影片標題'}
+            {toDisplayLanguage(videoTitle) || '影片標題'}
           </h1>
           {totalEpisodes > 1 && (
             <span className='shrink-0 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-0.5 text-xs sm:text-sm font-semibold text-accent tabular-nums'>
-              {formatEpisodeBadge(
-                detail?.episodes_titles?.[currentEpisodeIndex],
-                currentEpisodeIndex
+              {toDisplayLanguage(
+                formatEpisodeBadge(
+                  detail?.episodes_titles?.[currentEpisodeIndex],
+                  currentEpisodeIndex
+                )
               )}
             </span>
           )}

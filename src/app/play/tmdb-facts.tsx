@@ -27,6 +27,7 @@ export function TmdbFacts({
   category,
   sourceOverview,
   onPoster,
+  onOverview,
 }: {
   title: string;
   year?: string;
@@ -35,6 +36,7 @@ export function TmdbFacts({
   category?: string;
   sourceOverview?: string;
   onPoster?: (posterUrl: string) => void;
+  onOverview?: (overview: string) => void;
 }) {
   const [match, setMatch] = useState<TmdbMatch | null>(null);
 
@@ -58,6 +60,7 @@ export function TmdbFacts({
         if (controller.signal.aborted) return;
         const next = payload.match || null;
         setMatch(next);
+        onOverview?.(next?.overview || '');
         if (next?.posterUrl) onPoster?.(next.posterUrl);
       } catch {
         // 取消或 TMDB 暫時失敗都不影響播放。
@@ -65,7 +68,7 @@ export function TmdbFacts({
     })();
 
     return () => controller.abort();
-  }, [category, episodes, onPoster, title, typeName, year]);
+  }, [category, episodes, onOverview, onPoster, title, typeName, year]);
 
   if (!match) return null;
 

@@ -1,9 +1,11 @@
+import { toDisplayLanguage } from './chinese';
 import { setCachedCustomTitleAliases } from './regional-title-aliases';
 import { convertT2S } from './s2t';
 import {
   collectTmdbSearchQueries,
   extractSeasonNumber,
   mapTmdbDetail,
+  pickChineseCopy,
   pickTmdbCandidate,
   preferTmdbMediaType,
   scoreTmdbCandidate,
@@ -66,23 +68,40 @@ describe('pickTmdbCandidate', () => {
     expect(picked?.id).toBe(1);
   });
 
-  it('同年名但年份差太多的重啟作不採用', () => {
+  it('劇集的季度年份和系列首播差幾年仍採用', () => {
     const picked = pickTmdbCandidate(
-      [candidate({ date: '2022-01-01', id: 9 })],
+      [candidate({ date: '2013-04-07', id: 9 })],
+      {
+        title: '進擊的巨人',
+        year: '2022',
+        episodes: 12,
+        typeName: '動漫',
+      }
+    );
+    expect(picked?.id).toBe(9);
+  });
+
+  it('電影年份差太多的同名作不採用', () => {
+    const picked = pickTmdbCandidate(
+      [candidate({ mediaType: 'movie', date: '2022-01-01', id: 9 })],
       {
         title: '進擊的巨人',
         year: '2013',
-        episodes: 25,
-        typeName: '動漫',
+        episodes: 1,
+        typeName: '電影',
       }
     );
     expect(picked).toBeNull();
     expect(
-      scoreTmdbCandidate(candidate({ date: '2022-01-01' }), {
-        title: '進擊的巨人',
-        year: '2013',
-        episodes: 25,
-      })
+      scoreTmdbCandidate(
+        candidate({ mediaType: 'movie', date: '2022-01-01' }),
+        {
+          title: '進擊的巨人',
+          year: '2013',
+          episodes: 1,
+          typeName: '電影',
+        }
+      )
     ).toBeLessThan(90);
   });
 
@@ -92,6 +111,33 @@ describe('pickTmdbCandidate', () => {
       { title: '進擊的巨人', year: '2013', episodes: 25 }
     );
     expect(picked?.id).toBe(1);
+  });
+});
+
+describe('pickChineseCopy', () => {
+  it('繁中簡介優先，沒有時改用簡中再轉繁', () => {
+    const simplified = convertT2S('人類與巨人的戰鬥，設定很完整。');
+    const picked = pickChineseCopy(
+      {
+        translations: [
+          {
+            iso_639_1: 'zh',
+            iso_3166_1: 'CN',
+            data: { name: convertT2S('進擊的巨人'), overview: simplified },
+          },
+          {
+            iso_639_1: 'zh',
+            iso_3166_1: 'TW',
+            data: { name: '進擊的巨人', overview: '' },
+          },
+        ],
+      },
+      'tv'
+    );
+
+    expect(picked.title).toBe('進擊的巨人');
+    expect(toDisplayLanguage(picked.overview)).toContain('人類');
+    expect(toDisplayLanguage(picked.overview)).not.toBe(simplified);
   });
 });
 

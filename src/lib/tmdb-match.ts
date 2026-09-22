@@ -195,8 +195,14 @@ export function scoreTmdbCandidate(
   const queryYear = readYear(query.year);
   if (candidateYear != null && queryYear != null) {
     const delta = Math.abs(candidateYear - queryYear);
+    // 劇集頁上的年份常是這一季，TMDB 記的是系列首播，差個幾年仍是同一部。
+    // 電影差超過一年就很可能是同名重啟作。
+    const tvLike =
+      candidate.mediaType === 'tv' || preferTmdbMediaType(query) === 'tv';
+    const maxDelta = tvLike ? 20 : 1;
     if (delta === 0) score += 25;
     else if (delta === 1) score += 12;
+    else if (delta <= maxDelta) score += 4;
     else score -= 40;
   }
 
@@ -378,6 +384,62 @@ export function mapTmdbDetail(
 
 export function hasHanText(value: string): boolean {
   return /\p{Script=Han}/u.test(value);
+}
+
+function translationList(payload: unknown): Array<Record<string, unknown>> {
+  if (!payload || typeof payload !== 'object') return [];
+  const wrapped = (payload as { translations?: unknown }).translations;
+  if (Array.isArray(wrapped)) return wrapped as Array<Record<string, unknown>>;
+  if (wrapped && typeof wrapped === 'object') {
+    const nested = (wrapped as { translations?: unknown }).translations;
+    if (Array.isArray(nested)) return nested as Array<Record<string, unknown>>;
+  }
+  return [];
+}
+
+function chineseRank(language: string, region: string): number {
+  if (language !== 'zh') return 0;
+  if (region === 'TW' || region === 'HK') return 3;
+  if (region === 'CN') return 2;
+  return 1;
+}
+
+/**
+ * 從 TMDB translations 挑中文標題與簡介。
+ * 繁中優先；繁中沒有簡介時用簡中，之後再轉成繁中。
+ */
+export function pickChineseCopy(
+  translations: unknown,
+  mediaType: TmdbMediaType
+): { title: string; overview: string } {
+  let title = '';
+  let titleRank = 0;
+  let overview = '';
+  let overviewRank = 0;
+  const titleKey = mediaType === 'tv' ? 'name' : 'title';
+
+  for (const item of translationList(translations)) {
+    const rank = chineseRank(
+      String(item.iso_639_1 || ''),
+      String(item.iso_3166_1 || '')
+    );
+    if (!rank || !item.data || typeof item.data !== 'object') continue;
+    const data = item.data as Record<string, unknown>;
+    const nextTitle = String(
+      data[titleKey] || data.title || data.name || ''
+    ).trim();
+    const nextOverview = String(data.overview || '').trim();
+    if (nextTitle && hasHanText(nextTitle) && rank > titleRank) {
+      title = nextTitle;
+      titleRank = rank;
+    }
+    if (nextOverview && hasHanText(nextOverview) && rank > overviewRank) {
+      overview = nextOverview;
+      overviewRank = rank;
+    }
+  }
+
+  return { title, overview };
 }
 
 export function chooseTraditionalText(

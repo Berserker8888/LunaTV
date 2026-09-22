@@ -7,6 +7,7 @@ import {
   hasHanText,
   mapTmdbDetail,
   mapTmdbSearchResults,
+  pickChineseCopy,
   pickTmdbCandidate,
   type TmdbMatch,
   type TmdbMediaType,
@@ -25,7 +26,9 @@ type CacheEntry = { expiresAt: number; match: TmdbMatch | null };
 const responseCache = new Map<string, CacheEntry>();
 
 export function getTmdbApiKey(env: NodeJS.ProcessEnv = process.env): string {
-  return (env.TMDB_API_KEY || '').trim();
+  // 用變數當鍵，避免 Next 在建置映像時把空值寫死，正式容器的環境變數就讀不到。
+  const name = 'TMDB_API_KEY';
+  return String(env[name] || '').trim();
 }
 
 export function isTmdbConfigured(
@@ -173,12 +176,17 @@ async function loadTmdbMatch(
   if (!picked) return null;
 
   const detailUrl = (language: string) =>
-    `${TMDB_ORIGIN}/${picked.mediaType}/${picked.id}?language=${language}&append_to_response=credits`;
+    `${TMDB_ORIGIN}/${picked.mediaType}/${picked.id}?language=${language}&append_to_response=credits,translations`;
   let detail = (await fetchJson(detailUrl('zh-TW'), apiKey)) as Record<
     string,
     unknown
   >;
   const titleKey = picked.mediaType === 'tv' ? 'name' : 'title';
+  const chinese = pickChineseCopy(detail?.translations, picked.mediaType);
+  if (detail && typeof detail === 'object') {
+    if (chinese.title) detail[titleKey] = chinese.title;
+    if (chinese.overview) detail.overview = chinese.overview;
+  }
   const needsFallback =
     !hasHanText(String(detail?.[titleKey] || '')) ||
     !hasHanText(String(detail?.overview || ''));
