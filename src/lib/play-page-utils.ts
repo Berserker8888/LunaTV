@@ -471,11 +471,14 @@ export function clampPlayerSeek(
 }
 
 export function formatPlayerTime(seconds: number): string {
-  if (seconds === 0) return '00:00';
+  const totalSeconds = Number.isFinite(seconds)
+    ? Math.max(0, Math.round(seconds))
+    : 0;
+  if (totalSeconds === 0) return '00:00';
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = Math.round(seconds % 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
 
   if (hours === 0) {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds

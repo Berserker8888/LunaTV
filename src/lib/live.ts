@@ -150,9 +150,7 @@ async function performLiveChannelRefresh(liveInfo: {
     return 0;
   }
 
-  if (cachedLiveChannels[liveInfo.key]) {
-    delete cachedLiveChannels[liveInfo.key];
-  }
+  const previous = cachedLiveChannels[liveInfo.key];
   const ua = liveInfo.ua || defaultUA;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LIVE_FETCH_TIMEOUT_MS);
@@ -164,11 +162,20 @@ async function performLiveChannelRefresh(liveInfo: {
       },
       signal: controller.signal,
     });
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      return previous?.channelNumber ?? 0;
+    }
     data = await readResponseTextWithLimit(response, MAX_LIVE_PLAYLIST_BYTES);
+  } catch {
+    return previous?.channelNumber ?? 0;
   } finally {
     clearTimeout(timeoutId);
   }
-  const result = parseM3U(liveInfo.key, data);
+  const result = parseM3U(liveInfo.key, data, liveInfo.url);
+  if (result.channels.length === 0) {
+    return previous?.channelNumber ?? 0;
+  }
   const epgUrl = liveInfo.epg || result.tvgUrl;
   const epgs = await parseEpg(
     epgUrl,
@@ -273,9 +280,10 @@ async function parseEpg(
  * @param m3uContent M3U檔案的內容字串
  * @returns 頻道資訊陣列
  */
-function parseM3U(
+export function parseM3U(
   sourceKey: string,
-  m3uContent: string
+  m3uContent: string,
+  playlistUrl = ''
 ): {
   tvgUrl: string;
   channels: {
@@ -332,16 +340,14 @@ function parseM3U(
       const groupTitleMatch = line.match(/group-title="([^"]*)"/);
       const group = groupTitleMatch ? groupTitleMatch[1] : '無分組';
 
-      // 提取標題（#EXTINF 行最後的逗號後面的內容）
-      const titleMatch = line.match(/,([^,]*)$/);
-      const title = titleMatch ? titleMatch[1].trim() : '';
+      // 顯示名稱在屬性區之後的第一個逗號，名稱本身可以再含逗號。
+      const title = extractExtinfTitle(line);
 
-      // 優先使用 tvg-name，如果沒有則使用標題
       const name = title || tvgName || '';
 
       // 检查下一行是否是URL
       if (i + 1 < lines.length && !lines[i + 1].startsWith('#')) {
-        const url = lines[i + 1];
+        const url = resolvePlaylistEntryUrl(playlistUrl, lines[i + 1]);
 
         // 只有當有名稱和 URL 時才加入結果中
         if (name && url) {
@@ -363,6 +369,31 @@ function parseM3U(
   }
 
   return { tvgUrl, channels };
+}
+
+function extractExtinfTitle(line: string): string {
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      return line.slice(index + 1).trim();
+    }
+  }
+  return '';
+}
+
+function resolvePlaylistEntryUrl(playlistUrl: string, rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed || !playlistUrl) return trimmed;
+  try {
+    return new URL(trimmed, playlistUrl).href;
+  } catch {
+    return trimmed;
+  }
 }
 
 // utils/urlResolver.js
@@ -432,17 +463,15 @@ function fallbackUrlResolve(baseUrl: string, relativePath: string) {
 export function getBaseUrl(m3u8Url: string) {
   try {
     const url = new URL(m3u8Url);
-    // 如果 URL 以 .m3u8 結尾，移除檔名
-    if (url.pathname.endsWith('.m3u8')) {
-      url.pathname = url.pathname.substring(
-        0,
-        url.pathname.lastIndexOf('/') + 1
-      );
-    } else if (!url.pathname.endsWith('/')) {
-      url.pathname += '/';
+    if (!url.pathname.endsWith('/')) {
+      const slash = url.pathname.lastIndexOf('/');
+      url.pathname = slash >= 0 ? url.pathname.slice(0, slash + 1) : '/';
     }
-    return url.protocol + '//' + url.host + url.pathname;
-  } catch (error) {
-    return m3u8Url.endsWith('/') ? m3u8Url : m3u8Url + '/';
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    const stripped = m3u8Url.split(/[?#]/, 1)[0];
+    if (stripped.endsWith('/')) return stripped;
+    const slash = stripped.lastIndexOf('/');
+    return slash >= 0 ? stripped.slice(0, slash + 1) : stripped;
   }
 }

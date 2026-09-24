@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { ChevronLeft, ChevronRight, Clapperboard } from 'lucide-react';
@@ -10,16 +9,12 @@ import { buildPlayUrl } from '@/lib/play-url';
 
 import { PosterImage } from './PosterImage';
 import { SectionTitle } from './SectionTitle';
+import { scrollRowBy } from './utils';
 
 export function NetflixBangumiRow({
   bangumiData,
-  scrollRow,
 }: {
   bangumiData: BangumiCalendarData[];
-  scrollRow: (
-    ref: React.RefObject<HTMLDivElement>,
-    dir: 'left' | 'right'
-  ) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -42,7 +37,7 @@ export function NetflixBangumiRow({
         <button
           type='button'
           aria-label='向左捲動'
-          onClick={() => scrollRow(scrollRef as any, 'left')}
+          onClick={() => scrollRowBy(scrollRef.current, 'left')}
           className='absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-zinc-900 shadow-lg ring-1 ring-zinc-200 backdrop-blur-sm transition-colors hover:bg-white dark:bg-black/65 dark:text-white dark:ring-0 dark:hover:bg-black/85 md:flex'
         >
           <ChevronLeft className='w-5 h-5' />
@@ -50,7 +45,7 @@ export function NetflixBangumiRow({
         <button
           type='button'
           aria-label='向右捲動'
-          onClick={() => scrollRow(scrollRef as any, 'right')}
+          onClick={() => scrollRowBy(scrollRef.current, 'right')}
           className='absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-zinc-900 shadow-lg ring-1 ring-zinc-200 backdrop-blur-sm transition-colors hover:bg-white dark:bg-black/65 dark:text-white dark:ring-0 dark:hover:bg-black/85 md:flex'
         >
           <ChevronRight className='w-5 h-5' />

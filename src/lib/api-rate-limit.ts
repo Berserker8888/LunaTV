@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getVerifiedAuthInfo } from './api-auth';
-import { isTrustedProxy } from './same-site';
+import { clientAddressFromProxyHeaders, isTrustedProxy } from './same-site';
 import { consumeRateLimit } from './security-store';
 import { getServerStorageType } from './storage-runtime';
 
@@ -10,7 +10,9 @@ export { isTrustedProxy };
 /**
  * 從請求標頭推導客戶端 IP。
  *
- * 未設 TRUST_PROXY 時不讀 x-forwarded-for / x-real-ip（直連埠對映可偽造）。
+ * 未設 TRUST_PROXY 時不讀轉發標頭（直連埠對映可偽造）。
+ * 有轉發清單時取最右邊，也就是最靠近這台機器的那一跳。
+ * Cloudflare 的 cf-connecting-ip 只在前面都沒有時才用。
  * 截斷長度是因為標頭完全由客戶端控制，未經處理就當 Redis key 會讓攻擊者
  * 灌爆 key 空間。
  */
@@ -20,11 +22,7 @@ export function getClientIp(
 ): string {
   if (!isTrustedProxy(env)) return 'unknown';
 
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown'
-  ).slice(0, 128);
+  return clientAddressFromProxyHeaders(request.headers);
 }
 
 export interface RateLimitOptions {

@@ -91,7 +91,6 @@ export async function GET(request: Request) {
 
     const headers = new Headers();
     const passthroughHeaders = [
-      'content-type',
       'content-length',
       'content-range',
       'accept-ranges',
@@ -103,9 +102,11 @@ export async function GET(request: Request) {
       const value = limited.headers.get(name);
       if (value) headers.set(name, value);
     });
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/octet-stream');
-    }
+    // 不轉送上游 Content-Type。否則登入使用者能讓這條網址回傳 HTML，在本站來源執行。
+    headers.set('Content-Type', 'application/octet-stream');
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('Content-Disposition', 'attachment');
+    headers.set('Content-Security-Policy', "default-src 'none'; sandbox");
     headers.set('Access-Control-Allow-Origin', '*');
     headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
     headers.set(

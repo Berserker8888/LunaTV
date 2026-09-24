@@ -636,6 +636,8 @@ describe('play page pure helpers', () => {
     expect(formatPlayerTime(0)).toBe('00:00');
     expect(formatPlayerTime(65)).toBe('01:05');
     expect(formatPlayerTime(3661)).toBe('01:01:01');
+    expect(formatPlayerTime(59.6)).toBe('01:00');
+    expect(formatPlayerTime(119.6)).toBe('02:00');
   });
 
   it('parses speed labels to KB/s', () => {

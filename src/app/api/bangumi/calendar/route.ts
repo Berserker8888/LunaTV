@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 
 import type { BangumiCalendarData } from '@/lib/bangumi.client';
 import { BANGUMI_USER_AGENT } from '@/lib/bangumi-aliases';
-import { readResponseJsonWithLimit } from '@/lib/response-limit';
+import {
+  BANGUMI_OFFICIAL_ORIGIN,
+  fetchBangumiJson,
+} from '@/lib/bangumi-upstream';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,29 +24,27 @@ export async function GET() {
     return createCalendarResponse(calendarCache.data);
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const result = await fetchBangumiJson<BangumiCalendarData[]>('calendar', {
+    timeoutMs: 8000,
+    maxBytes: MAX_CALENDAR_RESPONSE_BYTES,
+    headersFor: (origin) => ({
+      Accept: 'application/json',
+      'User-Agent': BANGUMI_USER_AGENT,
+      ...(origin === BANGUMI_OFFICIAL_ORIGIN ? getBangumiAuthHeaders() : {}),
+    }),
+    parse: (value) =>
+      Array.isArray(value) ? (value as BangumiCalendarData[]) : null,
+  });
+  if (result.status !== 'ok') {
+    return createCalendarResponse(calendarCache?.data || []);
+  }
 
   try {
-    const response = await fetch('https://api.bgm.tv/calendar', {
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json',
-        ...getBangumiAuthHeaders(),
-        'User-Agent': BANGUMI_USER_AGENT,
-      },
-    });
-    if (!response.ok) {
-      return createCalendarResponse(calendarCache?.data || []);
-    }
-
-    const data = await readResponseJsonWithLimit<BangumiCalendarData[]>(
-      response,
-      MAX_CALENDAR_RESPONSE_BYTES
-    );
-    const filteredData = data.map((item) => ({
+    const filteredData = result.data.map((item) => ({
       ...item,
-      items: item.items.filter((bangumiItem) => bangumiItem.images),
+      items: Array.isArray(item.items)
+        ? item.items.filter((bangumiItem) => bangumiItem.images)
+        : [],
     }));
 
     calendarCache = {
@@ -54,8 +55,6 @@ export async function GET() {
     return createCalendarResponse(filteredData);
   } catch {
     return createCalendarResponse(calendarCache?.data || []);
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 

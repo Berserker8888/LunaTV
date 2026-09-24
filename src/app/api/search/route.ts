@@ -9,7 +9,7 @@ import { getMainlandSearchQueries } from '@/lib/mainland-search';
 import { fanoutSearchSources } from '@/lib/search-fanout';
 import { orderSourcesByHealth } from '@/lib/source-health';
 import { orderSourcesByValidation } from '@/lib/source-validation';
-import { yellowWords } from '@/lib/yellow';
+import { isYellowTypeName } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 const PRIVATE_NO_STORE_HEADERS = {
@@ -77,10 +77,9 @@ export async function GET(request: NextRequest) {
     });
     let flattenedResults = siteResults.flatMap((entry) => entry.results);
     if (!config.SiteConfig.DisableYellowFilter) {
-      flattenedResults = flattenedResults.filter((result) => {
-        const typeName = result.type_name || '';
-        return !yellowWords.some((word: string) => typeName.includes(word));
-      });
+      flattenedResults = flattenedResults.filter(
+        (result) => !isYellowTypeName(result.type_name)
+      );
     }
     if (flattenedResults.length === 0) {
       return NextResponse.json(

@@ -1,4 +1,5 @@
 import { AdminConfig } from './admin.types';
+import type { BangumiAliasCacheEntry } from './bangumi-alias-storage';
 
 // 播放記錄資料結構
 export interface PlayRecord {
@@ -16,6 +17,8 @@ export interface PlayRecord {
   known_episodes?: number;
   vod_id?: string;
   source?: string;
+  /** 舊資料可能把識別碼放在 id，而不是 vod_id。 */
+  id?: string;
 }
 
 // 收藏資料結構
@@ -97,6 +100,14 @@ export interface IStorage {
   ): Promise<void>;
   deleteSkipConfig(userName: string, source: string, id: string): Promise<void>;
   getAllSkipConfigs(userName: string): Promise<{ [key: string]: SkipConfig }>;
+
+  getBangumiAliasCache(
+    bangumiId: string
+  ): Promise<BangumiAliasCacheEntry | null>;
+  setBangumiAliasCache(
+    bangumiId: string,
+    entry: BangumiAliasCacheEntry
+  ): Promise<void>;
 
   // 資料遷移（舊扁平 key → Hash 結構）
   migrateData?(): Promise<void>;

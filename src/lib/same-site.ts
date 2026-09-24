@@ -9,6 +9,34 @@ export function isTrustedProxy(
 }
 
 /**
+ * 轉發標頭逗號清單裡，最右邊那一截是最靠近這台機器的反代寫上的。
+ * 客戶端自己附在前面的值不會蓋過它。只有一截時結果與以前相同。
+ */
+export function nearestForwardedToken(
+  header: string | null | undefined
+): string {
+  if (!header) return '';
+  const parts = header.split(',');
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const token = parts[index].trim();
+    if (token) return token;
+  }
+  return '';
+}
+
+/** TRUST_PROXY 開啟後，從轉發標頭取出客戶端位址。 */
+export function clientAddressFromProxyHeaders(headers: {
+  get(name: string): string | null;
+}): string {
+  return (
+    nearestForwardedToken(headers.get('x-forwarded-for')) ||
+    headers.get('x-real-ip')?.trim() ||
+    headers.get('cf-connecting-ip')?.trim() ||
+    'unknown'
+  ).slice(0, 128);
+}
+
+/**
  * Origin 的 host 是否與本站一致。
  *
  * 只比 host、不比 scheme：Cloudflare／反向代理在邊緣終止 TLS 時，
@@ -38,10 +66,9 @@ function resolveExpectedHost(
   env: { TRUST_PROXY?: string; [key: string]: string | undefined }
 ): string {
   if (isTrustedProxy(env)) {
-    const forwarded = request.headers
-      .get('x-forwarded-host')
-      ?.split(',')[0]
-      ?.trim();
+    const forwarded = nearestForwardedToken(
+      request.headers.get('x-forwarded-host')
+    );
     if (forwarded) return forwarded.toLowerCase();
   }
 

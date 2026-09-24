@@ -11,7 +11,7 @@ import { fanoutSearchSources } from '@/lib/search-fanout';
 import { orderSourcesByHealth } from '@/lib/source-health';
 import { orderSourcesByValidation } from '@/lib/source-validation';
 import { SearchResult } from '@/lib/types';
-import { yellowWords } from '@/lib/yellow';
+import { isYellowTypeName } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 
@@ -160,12 +160,9 @@ export async function GET(request: NextRequest) {
 
           let filteredResults = entry.results;
           if (!config.SiteConfig.DisableYellowFilter) {
-            filteredResults = entry.results.filter((result) => {
-              const typeName = result.type_name || '';
-              return !yellowWords.some((word: string) =>
-                typeName.includes(word)
-              );
-            });
+            filteredResults = entry.results.filter(
+              (result) => !isYellowTypeName(result.type_name)
+            );
           }
 
           if (!streamClosed) {

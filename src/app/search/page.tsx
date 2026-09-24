@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any,no-empty */
+/* eslint-disable react-hooks/exhaustive-deps, no-empty */
 'use client';
 
 import { ChevronUp, LayoutGrid, List, Play, Search, X } from 'lucide-react';
@@ -12,7 +12,7 @@ import React, {
   useState,
 } from 'react';
 
-import { cleanQueryForApi } from '@/lib/chinese';
+import { cleanQueryForApi, toSearchSimplified } from '@/lib/chinese';
 import { addSearchHistory } from '@/lib/db.client';
 import { getResultEpisodeCount } from '@/lib/play-page-utils';
 import { buildPlayUrl } from '@/lib/play-url';
@@ -42,6 +42,28 @@ const DEFAULT_SEARCH_FILTER = {
   year: 'all',
   yearOrder: 'none' as const,
 };
+
+type SearchFilterState = {
+  source: string;
+  title: string;
+  year: string;
+  yearOrder: 'none' | 'asc' | 'desc';
+};
+
+function toSearchFilterState(
+  values: Record<string, string>
+): SearchFilterState {
+  const yearOrder =
+    values.yearOrder === 'asc' || values.yearOrder === 'desc'
+      ? values.yearOrder
+      : 'none';
+  return {
+    source: values.source || 'all',
+    title: values.title || 'all',
+    year: values.year || 'all',
+    yearOrder,
+  };
+}
 
 function SearchPageClient() {
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -359,9 +381,10 @@ function SearchPageClient() {
     const keyOrder: string[] = [];
 
     fuzzySearchResults.forEach((item) => {
-      const key = `${item.title.replaceAll(' ', '')}-${
+      const kind = getResultEpisodeCount(item) <= 1 ? 'movie' : 'tv';
+      const key = `${toSearchSimplified(item.title || '').replaceAll(' ', '')}-${
         item.year || 'unknown'
-      }-${item.episodes.length === 1 ? 'movie' : 'tv'}`;
+      }-${kind}`;
       const arr = map.get(key) || [];
       if (arr.length === 0) keyOrder.push(key);
       arr.push(item);
@@ -926,13 +949,13 @@ function SearchPageClient() {
                     <SearchResultFilter
                       categories={filterOptions.categoriesAgg}
                       values={filterAgg}
-                      onChange={(v) => setFilterAgg(v as any)}
+                      onChange={(v) => setFilterAgg(toSearchFilterState(v))}
                     />
                   ) : (
                     <SearchResultFilter
                       categories={filterOptions.categoriesAll}
                       values={filterAll}
-                      onChange={(v) => setFilterAll(v as any)}
+                      onChange={(v) => setFilterAll(toSearchFilterState(v))}
                     />
                   )}
                 </div>
@@ -947,16 +970,8 @@ function SearchPageClient() {
                   values={viewMode === 'agg' ? filterAgg : filterAll}
                   onChange={(values) =>
                     viewMode === 'agg'
-                      ? setFilterAgg({
-                          ...values,
-                          yearOrder: values.yearOrder as
-                            'none' | 'asc' | 'desc',
-                        })
-                      : setFilterAll({
-                          ...values,
-                          yearOrder: values.yearOrder as
-                            'none' | 'asc' | 'desc',
-                        })
+                      ? setFilterAgg(toSearchFilterState(values))
+                      : setFilterAll(toSearchFilterState(values))
                   }
                   onOpen={() => setShowMobileFilters(true)}
                   onClose={() => setShowMobileFilters(false)}

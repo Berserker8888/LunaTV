@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { timingSafeEqual } from 'crypto';
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 
 import { mapWithConcurrency } from '@/lib/concurrency';
 import {
@@ -55,19 +55,22 @@ function shouldStopCron(deadline: number, phase: string) {
 function startCronJob(): Promise<'ran' | 'busy'> {
   if (activeCronJob) return activeCronJob;
 
-  const job = db.tryCronLock(async () => {
-    activeCronStartedAt = new Date().toISOString();
-    markCronStarted(activeCronStartedAt);
-    try {
-      await cronJob();
-      markCronCompleted();
-    } catch (error) {
-      markCronCompleted(error);
-      throw error;
-    } finally {
+  const startedAt = new Date().toISOString();
+  activeCronStartedAt = startedAt;
+  const job = db
+    .tryCronLock(async () => {
+      markCronStarted(startedAt);
+      try {
+        await cronJob();
+        markCronCompleted();
+      } catch (error) {
+        markCronCompleted(error);
+        throw error;
+      }
+    })
+    .finally(() => {
       activeCronStartedAt = '';
-    }
-  });
+    });
   activeCronJob = job.finally(() => {
     activeCronJob = null;
   });
@@ -153,9 +156,11 @@ export async function GET(request: NextRequest) {
     }
 
     const backgroundJob = startCronJob();
-    void backgroundJob.catch((error) => {
-      console.error('Cron job failed:', error);
-    });
+    after(() =>
+      backgroundJob.catch((error) => {
+        console.error('Cron job failed:', error);
+      })
+    );
 
     return NextResponse.json(
       {

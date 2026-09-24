@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -10,22 +9,18 @@ import { DoubanItem } from '@/lib/types';
 
 import { NetflixScrollCard } from './NetflixScrollCard';
 import { SectionTitle } from './SectionTitle';
+import { scrollRowBy } from './utils';
 
 export function NetflixSectionRow({
   title,
   icon,
   items,
   viewAllHref,
-  scrollRow,
 }: {
   title: string;
   icon: React.ReactNode;
   items: DoubanItem[];
   viewAllHref?: string;
-  scrollRow: (
-    ref: React.RefObject<HTMLDivElement>,
-    dir: 'left' | 'right'
-  ) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -41,7 +36,7 @@ export function NetflixSectionRow({
           aria-label='向左捲動'
           onClick={(e) => {
             e.stopPropagation();
-            scrollRow(scrollRef as any, 'left');
+            scrollRowBy(scrollRef.current, 'left');
           }}
           className='absolute left-0 top-0 hidden h-full w-14 items-center justify-center bg-gradient-to-r from-white/85 to-transparent dark:from-black/55 transition-all duration-200 z-50 cursor-pointer md:flex'
         >
@@ -54,7 +49,7 @@ export function NetflixSectionRow({
           aria-label='向右捲動'
           onClick={(e) => {
             e.stopPropagation();
-            scrollRow(scrollRef as any, 'right');
+            scrollRowBy(scrollRef.current, 'right');
           }}
           className='absolute right-0 top-0 hidden h-full w-14 items-center justify-center bg-gradient-to-l from-white/85 to-transparent dark:from-black/55 transition-all duration-200 z-50 cursor-pointer md:flex'
         >

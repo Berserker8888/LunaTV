@@ -1,6 +1,5 @@
+import { fetchBangumiJson } from '@/lib/bangumi-upstream';
 import { isCjkSearchQuery } from '@/lib/chinese';
-import { logger } from '@/lib/logger';
-import { readResponseJsonWithLimit } from '@/lib/response-limit';
 import { CURRENT_VERSION } from '@/lib/version';
 
 type BangumiInfoboxValue =
@@ -90,37 +89,26 @@ export async function fetchBangumiSubjectAliases(
 ): Promise<string[]> {
   if (!bangumiId) return [];
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    BANGUMI_ALIAS_FETCH_TIMEOUT_MS
-  );
+  if (!/^\d+$/.test(bangumiId)) return [];
 
-  try {
-    const response = await fetch(
-      `https://api.bgm.tv/v0/subjects/${encodeURIComponent(bangumiId)}`,
-      {
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': BANGUMI_USER_AGENT,
-        },
+  const result = await fetchBangumiJson<string[]>('v0/subjects/' + bangumiId, {
+    timeoutMs: BANGUMI_ALIAS_FETCH_TIMEOUT_MS,
+    maxBytes: MAX_SUBJECT_RESPONSE_BYTES,
+    headersFor: () => ({
+      Accept: 'application/json',
+      'User-Agent': BANGUMI_USER_AGENT,
+    }),
+    parse: (value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
       }
-    );
-    if (response.status === 404) return [];
-    if (!response.ok) {
-      throw new Error(`Bangumi API returned ${response.status}`);
-    }
+      return extractBangumiAliases(value as BangumiSubjectInfo);
+    },
+  });
 
-    const data = await readResponseJsonWithLimit<BangumiSubjectInfo>(
-      response,
-      MAX_SUBJECT_RESPONSE_BYTES
-    );
-    return extractBangumiAliases(data);
-  } catch (error) {
-    logger.warn('取得 Bangumi 別名失敗:', error);
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
+  if (result.status === 'not-found') return [];
+  if (result.status === 'failed') {
+    throw new Error('Bangumi upstream failed');
   }
+  return result.data;
 }

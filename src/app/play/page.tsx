@@ -51,6 +51,11 @@ import {
   PlaybackSearchPlanStage,
 } from '@/lib/play-search';
 import { makeSkipIdentityParts } from '@/lib/skip-identity';
+import {
+  escapeSkipTemplateLabel,
+  readSkipTemplates,
+  skipTemplateToConfig,
+} from '@/lib/skip-templates';
 import { SearchResult, SkipConfig } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 import {
@@ -76,6 +81,7 @@ import PlayerGestureLayer from '@/components/PlayerGestureLayer';
 import { useToast } from '@/components/ToastProvider';
 
 import { CustomHlsJsLoader } from './custom-hls-loader';
+import { ExternalPlayerButton } from './external-player-menu';
 import {
   HLS_SOFT_ERROR_MESSAGE,
   nextHlsFatalAction,
@@ -2266,6 +2272,15 @@ function PlayPageClient() {
           },
           skipSettings.setIntro,
           skipSettings.setOutro,
+          ...readSkipTemplates().map((template) => ({
+            name: `skip-template-${template.id}`,
+            html: `套用範本 ${escapeSkipTemplateLabel(template.name)}`,
+            tooltip: `片頭 ${template.introSeconds} 秒／片尾 ${template.outroSeconds} 秒`,
+            onClick() {
+              void handleSkipConfigChange(skipTemplateToConfig(template));
+              return `已套用 ${template.name}`;
+            },
+          })),
         ],
         // 控製欄設定
         controls: [
@@ -2357,14 +2372,20 @@ function PlayPageClient() {
         }
         const titleEl = topbarLayer.querySelector('.art-topbar-title');
         const timeEl = topbarLayer.querySelector('.art-topbar-time');
-        const displayTitle = getStableTitle(
-          videoTitleRef.current,
-          detailRef.current?.title
+        const displayTitle = toDisplayLanguage(
+          getStableTitle(videoTitleRef.current, detailRef.current?.title)
         );
         const epIdx = currentEpisodeIndexRef.current;
-        const epTitle = detailRef.current?.episodes_titles?.[epIdx];
         const total = detailRef.current?.episodes?.length || totalEpisodes;
-        const epText = epTitle || (total > 1 ? `第 ${epIdx + 1} 集` : '');
+        const epText =
+          total > 1
+            ? toDisplayLanguage(
+                formatEpisodeBadge(
+                  detailRef.current?.episodes_titles?.[epIdx],
+                  epIdx
+                )
+              )
+            : '';
         if (titleEl) {
           titleEl.textContent = epText
             ? `${displayTitle} · ${epText}`
@@ -2794,6 +2815,7 @@ function PlayPageClient() {
               )}
             </span>
           )}
+          <ExternalPlayerButton url={directVideoUrl} />
         </div>
         {/* 第二行：播放器和選集 */}
         <div className='space-y-2'>
@@ -2884,9 +2906,11 @@ function PlayPageClient() {
                 {/* 全螢幕時仍看得到集數 */}
                 {!isVideoLoading && !playbackSoftError && totalEpisodes > 1 && (
                   <PlayerEpisodeBadge
-                    label={formatEpisodeBadge(
-                      detail?.episodes_titles?.[currentEpisodeIndex],
-                      currentEpisodeIndex
+                    label={toDisplayLanguage(
+                      formatEpisodeBadge(
+                        detail?.episodes_titles?.[currentEpisodeIndex],
+                        currentEpisodeIndex
+                      )
                     )}
                   />
                 )}

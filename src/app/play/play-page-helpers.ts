@@ -38,8 +38,6 @@ export const DEFAULT_SKIP_CONFIG = {
 
 /** 歷史進度晚於 canplay 抵達時，只在使用者還沒真正開始看才補 seek。 */
 export const LATE_RESUME_PLAYED_THRESHOLD_SECONDS = 3;
-/** HLS 尚未展開完整片長時，duration 常只有前幾個 fragment。 */
-const RESUME_DURATION_MIN_SECONDS = 60;
 /** 已落到目標附近，視為恢復成功。 */
 const RESUME_SEEK_DONE_EPSILON_SECONDS = 5;
 
@@ -107,13 +105,17 @@ export function shouldApplyPlayResume(options: {
   return options.currentTime < LATE_RESUME_PLAYED_THRESHOLD_SECONDS;
 }
 
+/**
+ * duration 還比續播點短時先不要 seek。
+ * HLS 一開始常只報出前幾片的長度；這時若硬跳到暫時的片尾，
+ * 之後每次 timeupdate 都會把播放頭釘在那裡。
+ */
 export function isResumeDurationReliable(
   duration: number,
   target: number
 ): boolean {
   if (!Number.isFinite(duration) || duration <= 0) return false;
-  if (target <= duration + 1) return true;
-  return duration >= RESUME_DURATION_MIN_SECONDS;
+  return target <= duration + 1;
 }
 
 export type ResumeSeekOutcome = 'wait' | 'seek' | 'done';
@@ -124,11 +126,33 @@ export function getResumeSeekOutcome(
   duration: number
 ): ResumeSeekOutcome {
   if (!resumeTime || resumeTime <= 0) return 'done';
-  if (Math.abs(currentTime - resumeTime) <= RESUME_SEEK_DONE_EPSILON_SECONDS) {
+  if (!isResumeDurationReliable(duration, resumeTime)) return 'wait';
+
+  const target = clampResumeTarget(resumeTime, duration);
+  if (
+    Math.abs(currentTime - target) <= RESUME_SEEK_DONE_EPSILON_SECONDS ||
+    Math.abs(currentTime - resumeTime) <= RESUME_SEEK_DONE_EPSILON_SECONDS
+  ) {
     return 'done';
   }
-  if (!isResumeDurationReliable(duration, resumeTime)) return 'wait';
   return 'seek';
+}
+
+/** 播放頁簡介：短文或已展開時用全文，長文收合時才截斷。 */
+export function selectShownSynopsis(
+  synopsis: string,
+  expanded: boolean,
+  collapseLength = 180
+): { text: string; isLong: boolean } {
+  const chars = Array.from(synopsis);
+  const isLong = chars.length > collapseLength;
+  if (isLong && !expanded) {
+    return {
+      text: `${chars.slice(0, collapseLength).join('').trimEnd()}…`,
+      isLong,
+    };
+  }
+  return { text: synopsis, isLong };
 }
 
 export function applyResumeToPlayer(

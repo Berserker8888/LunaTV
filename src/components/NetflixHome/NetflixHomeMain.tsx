@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import {
@@ -49,7 +48,12 @@ import {
   formatSourceLabel,
   getWatchProgress,
   resolveRecordPlayTarget,
+  scrollRowBy,
 } from './utils';
+
+type ContinueWatchingItem = ReturnType<
+  typeof hydratePlayRecord<PlayRecord & { key: string; url?: string }>
+>;
 
 export default function NetflixHome({
   hotMovies = [],
@@ -90,9 +94,9 @@ export default function NetflixHome({
   const { toast } = useToast();
 
   // 狀態化管理繼續觀看，確保刪除時能即時反應
-  const [continueWatching, setContinueWatching] = useState<any[]>(() =>
-    playRecords.map((r) => hydratePlayRecord(r))
-  );
+  const [continueWatching, setContinueWatching] = useState<
+    ContinueWatchingItem[]
+  >(() => playRecords.map((record) => hydratePlayRecord(record)));
 
   // playRecords 變化時重建（render 期調整狀態；刪除等操作仍可本地覆寫）
   const [prevPlayRecords, setPrevPlayRecords] = useState(playRecords);
@@ -113,21 +117,24 @@ export default function NetflixHome({
     remainingContinueWatching.filter(hasNewEpisodes).length;
 
   // 補圖成功後寫回紀錄，hero 與下方列表共用；下次渲染就直接有封面。
-  const applyResolvedCover = useCallback((item: any, poster: string) => {
-    if (!poster || poster === item.cover) return;
-    const { source, id } = resolveRecordPlayTarget(item);
-    const itemKey = item.key || generateStorageKey(source, id);
+  const applyResolvedCover = useCallback(
+    (item: ContinueWatchingItem, poster: string) => {
+      if (!poster || poster === item.cover) return;
+      const { source, id } = resolveRecordPlayTarget(item);
+      const itemKey = item.key || generateStorageKey(source, id);
 
-    setContinueWatching((prev) =>
-      prev.map((record) =>
-        (record.key ||
-          generateStorageKey(record.source, record.id || record.vod_id)) ===
-        itemKey
-          ? { ...record, cover: poster }
-          : record
-      )
-    );
-  }, []);
+      setContinueWatching((prev) =>
+        prev.map((record) =>
+          (record.key ||
+            generateStorageKey(record.source, record.id || record.vod_id)) ===
+          itemKey
+            ? { ...record, cover: poster }
+            : record
+        )
+      );
+    },
+    []
+  );
 
   const handleClearAllRecords = useCallback(async () => {
     if (!window.confirm('確定要清除所有繼續觀看紀錄嗎？此動作無法復原。')) {
@@ -138,7 +145,10 @@ export default function NetflixHome({
     toast('已清空觀看紀錄', 'info');
   }, [toast]);
 
-  const handleDelete = async (e: React.MouseEvent, item: any) => {
+  const handleDelete = async (
+    e: React.MouseEvent,
+    item: ContinueWatchingItem
+  ) => {
     e.stopPropagation();
     e.preventDefault();
     if (!item) return;
@@ -233,17 +243,6 @@ export default function NetflixHome({
   };
 
   const continueRef = useRef<HTMLDivElement>(null);
-  const scrollRow = (
-    ref: React.RefObject<HTMLDivElement>,
-    dir: 'left' | 'right'
-  ) => {
-    const width = ref.current?.clientWidth || 400;
-    ref.current?.scrollBy({
-      left:
-        dir === 'left' ? -Math.round(width * 0.85) : Math.round(width * 0.85),
-      behavior: 'smooth',
-    });
-  };
 
   return (
     <div className='min-h-screen bg-transparent text-zinc-900 dark:text-zinc-100'>
@@ -375,7 +374,7 @@ export default function NetflixHome({
                       aria-label='向左捲動'
                       onClick={(e) => {
                         e.stopPropagation();
-                        scrollRow(continueRef as any, 'left');
+                        scrollRowBy(continueRef.current, 'left');
                       }}
                       className='absolute left-0 top-0 hidden h-full w-14 items-center justify-center bg-gradient-to-r from-white/85 to-transparent dark:from-black/55 transition-all duration-200 z-50 cursor-pointer md:flex'
                     >
@@ -388,7 +387,7 @@ export default function NetflixHome({
                       aria-label='向右捲動'
                       onClick={(e) => {
                         e.stopPropagation();
-                        scrollRow(continueRef as any, 'right');
+                        scrollRowBy(continueRef.current, 'right');
                       }}
                       className='absolute right-0 top-0 hidden h-full w-14 items-center justify-center bg-gradient-to-l from-white/85 to-transparent dark:from-black/55 transition-all duration-200 z-50 cursor-pointer md:flex'
                     >
@@ -530,7 +529,6 @@ export default function NetflixHome({
                 icon={<Film className='w-5 h-5 text-accent' />}
                 items={hotMovies}
                 viewAllHref='/douban?type=movie'
-                scrollRow={scrollRow}
               />
 
               <NetflixSectionRow
@@ -538,20 +536,15 @@ export default function NetflixHome({
                 icon={<Tv className='w-5 h-5 text-accent' />}
                 items={hotTvShows}
                 viewAllHref='/douban?type=tv'
-                scrollRow={scrollRow}
               />
 
-              <NetflixBangumiRow
-                bangumiData={bangumiData}
-                scrollRow={scrollRow}
-              />
+              <NetflixBangumiRow bangumiData={bangumiData} />
 
               <NetflixSectionRow
                 title='熱門綜藝'
                 icon={<Star className='w-5 h-5 text-accent' />}
                 items={hotVarietyShows}
                 viewAllHref='/douban?type=show'
-                scrollRow={scrollRow}
               />
             </>
           ) : (

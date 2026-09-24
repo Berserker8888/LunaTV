@@ -1,4 +1,4 @@
-import { isTrustedProxy } from './same-site';
+import { isTrustedProxy, nearestForwardedToken } from './same-site';
 
 export type CookieRequestLike = {
   headers: { get(name: string): string | null };
@@ -29,11 +29,9 @@ function forwardedProto(
   env: EnvLike
 ): 'http' | 'https' | null {
   if (!isTrustedProxy(env)) return null;
-  const forwarded = request.headers
-    .get('x-forwarded-proto')
-    ?.split(',')[0]
-    ?.trim()
-    .toLowerCase();
+  const forwarded = nearestForwardedToken(
+    request.headers.get('x-forwarded-proto')
+  ).toLowerCase();
   if (forwarded === 'https' || forwarded === 'http') return forwarded;
   return null;
 }
@@ -49,10 +47,9 @@ function requestProtocol(request: CookieRequestLike): 'http' | 'https' | null {
 
 function requestHost(request: CookieRequestLike, env: EnvLike): string {
   if (isTrustedProxy(env)) {
-    const forwarded = request.headers
-      .get('x-forwarded-host')
-      ?.split(',')[0]
-      ?.trim();
+    const forwarded = nearestForwardedToken(
+      request.headers.get('x-forwarded-host')
+    );
     if (forwarded) return forwarded.toLowerCase();
   }
   const host = request.headers.get('host');

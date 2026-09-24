@@ -33,4 +33,16 @@ describe('resolvePublicProxyOrigin', () => {
     );
     expect(origin).toEqual({ protocol: 'https', host: 'tv.example.com' });
   });
+
+  it('uses the nearest forwarded hop when the client prepends a value', () => {
+    const origin = resolvePublicProxyOrigin(
+      makeRequest('http://127.0.0.1:3000/api/proxy/m3u8', {
+        host: '127.0.0.1:3000',
+        'x-forwarded-proto': 'http, https',
+        'x-forwarded-host': 'evil.example, tv.example.com',
+      }),
+      { TRUST_PROXY: 'true' }
+    );
+    expect(origin).toEqual({ protocol: 'https', host: 'tv.example.com' });
+  });
 });

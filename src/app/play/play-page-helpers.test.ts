@@ -25,6 +25,7 @@ import {
   resolveCachedDetailEntry,
   resolveEpisodeIndexAfterRefresh,
   resolvePlayResume,
+  selectShownSynopsis,
   setCachedDetail,
   shouldApplyBackgroundDetail,
   shouldApplyPlayResume,
@@ -514,8 +515,11 @@ describe('play page URL / remount helpers', () => {
     expect(isResumeDurationReliable(1400, 1200)).toBe(true);
     expect(isResumeDurationReliable(40, 35)).toBe(true);
     expect(getResumeSeekOutcome(1200, 0, 8)).toBe('wait');
+    expect(getResumeSeekOutcome(1200, 0, 90)).toBe('wait');
+    expect(isResumeDurationReliable(90, 3600)).toBe(false);
     expect(getResumeSeekOutcome(1200, 0, 1400)).toBe('seek');
     expect(getResumeSeekOutcome(1200, 1198, 1400)).toBe('done');
+    expect(getResumeSeekOutcome(100.5, 95, 100)).toBe('done');
   });
 
   it('does not clamp a late resume onto a tiny HLS duration', () => {
@@ -526,6 +530,26 @@ describe('play page URL / remount helpers', () => {
     player.duration = 1400;
     expect(applyResumeToPlayer(player, 1200)).toBe('seek');
     expect(player.currentTime).toBe(1200);
+
+    player.currentTime = 0;
+    player.duration = 90;
+    expect(applyResumeToPlayer(player, 3600)).toBe('wait');
+    expect(player.currentTime).toBe(0);
+  });
+
+  it('shows the preferred synopsis instead of the shorter source text', () => {
+    const preferred = '繁中簡介';
+    expect(selectShownSynopsis(preferred, false, 180)).toEqual({
+      text: preferred,
+      isLong: false,
+    });
+
+    const long = '字'.repeat(200);
+    const collapsed = selectShownSynopsis(long, false, 180);
+    expect(collapsed.isLong).toBe(true);
+    expect(collapsed.text.endsWith('…')).toBe(true);
+    expect(collapsed.text.length).toBeLessThan(long.length);
+    expect(selectShownSynopsis(long, true, 180).text).toBe(long);
   });
 
   it('keeps a single video source element and re-enables remote playback', () => {

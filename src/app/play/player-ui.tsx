@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { toDisplayLanguage } from '@/lib/chinese';
 import { SearchResult } from '@/lib/types';
@@ -9,6 +9,7 @@ import { formatYear, getProxiedImageUrl, processImageUrl } from '@/lib/utils';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 
 import { FavoriteIcon } from './FavoriteIcon';
+import { selectShownSynopsis } from './play-page-helpers';
 import { TmdbFacts } from './tmdb-facts';
 
 /** 跳過片頭/片尾浮動按鈕 */
@@ -317,6 +318,8 @@ export function VideoDetailsPanel({
     setShownTmdbPosterKey(tmdbPosterKey);
     setTmdbPoster('');
     setTmdbOverview('');
+    setDescExpanded(false);
+    setFailedCover(null);
   }
   const displayCover = videoCover || tmdbPoster;
   const displayTitle = toDisplayLanguage(videoTitle) || '影片標題';
@@ -330,13 +333,11 @@ export function VideoDetailsPanel({
 
   const desc = toDisplayLanguage(detail?.desc?.trim() || '');
   const synopsis = tmdbOverview.trim() || desc;
-  // 以「字元」計數與截斷，避免 emoji／罕用字被 slice 劈成破字
-  const descChars = useMemo(() => Array.from(synopsis), [synopsis]);
-  const descIsLong = descChars.length > DESC_COLLAPSE_LENGTH;
-  const shownDesc =
-    descIsLong && !descExpanded
-      ? `${descChars.slice(0, DESC_COLLAPSE_LENGTH).join('').trimEnd()}…`
-      : desc;
+  const shown = selectShownSynopsis(
+    synopsis,
+    descExpanded,
+    DESC_COLLAPSE_LENGTH
+  );
 
   return (
     <div className='grid grid-cols-1 md:grid-cols-4 gap-4 rounded-xl border border-white/10 bg-zinc-900/30'>
@@ -383,8 +384,8 @@ export function VideoDetailsPanel({
 
           {synopsis && (
             <div className='text-sm sm:text-base leading-relaxed text-zinc-300 flex-1 min-h-0'>
-              <p style={{ whiteSpace: 'pre-line' }}>{shownDesc}</p>
-              {descIsLong && (
+              <p style={{ whiteSpace: 'pre-line' }}>{shown.text}</p>
+              {shown.isLong && (
                 <button
                   type='button'
                   onClick={() => setDescExpanded((v) => !v)}

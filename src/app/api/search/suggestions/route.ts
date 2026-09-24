@@ -9,7 +9,7 @@ import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { splitTitleWords } from '@/lib/string-utils';
-import { yellowWords } from '@/lib/yellow';
+import { isYellowTypeName } from '@/lib/yellow';
 
 import {
   getSuggestionMatchNeedles,
@@ -121,9 +121,7 @@ async function generateSuggestions(
           .filter(
             (r: any) =>
               config.SiteConfig.DisableYellowFilter ||
-              !yellowWords.some((word: string) =>
-                (r.type_name || '').includes(word)
-              )
+              !isYellowTypeName(r.type_name)
           )
           .map((r: any) => r.title)
           .filter(Boolean)

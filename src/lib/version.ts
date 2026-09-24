@@ -6,6 +6,18 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.2',
+    date: '2026-09-24',
+    content: `
+- 播放：可用 IINA、Infuse、PotPlayer、VLC、nPlayer、mpv 開啟目前這一集的直連網址，或複製網址。
+- 播放：片頭片尾可存成範本。設定頁能匯入、匯出，播放器設定裡可一鍵套用。
+- 探索：Bangumi 日曆與條目別名在官方 API 失敗或 404 時改走鏡像，仍失敗則沿用上一份快取。存取權杖只送給官方。
+- 安全：TRUST_PROXY 改採轉發標頭最右邊那一截，也就是最靠近這台機器的反代寫上的值。只有一截時結果不變。
+- 播放：去廣告仍拿掉廣告片段；正常轉場的 discontinuity 會留下。
+- 播放：外部播放只提示已送出開啟要求。片頭片尾 JSON 有任何一筆格式不對就整份不匯入。
+    `.trim(),
+  },
+  {
     version: 'v3.6.1',
     date: '2026-09-22',
     content: `

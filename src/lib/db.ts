@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { randomUUID } from 'node:crypto';
 
 import { AdminConfig } from './admin.types';
@@ -220,6 +218,7 @@ export class DbManager {
   private storage: IStorage;
   private migrationPromise: Promise<void> | null = null;
   private playRecordMutationQueues = new Map<string, Promise<void>>();
+  private favoriteMutationQueues = new Map<string, Promise<void>>();
   /** 行程內序列化管理設定寫入（與分散式鎖疊加） */
   private adminConfigMutationQueue: Promise<void> = Promise.resolve();
 
@@ -255,11 +254,12 @@ export class DbManager {
     }
   }
 
-  private async runPlayRecordMutation<T>(
-    userName: string,
+  private async enqueueMutation<T>(
+    queues: Map<string, Promise<void>>,
+    queueKey: string,
     mutation: () => Promise<T>
   ): Promise<T> {
-    const previous = this.playRecordMutationQueues.get(userName);
+    const previous = queues.get(queueKey);
     let releaseCurrent!: () => void;
     const current = new Promise<void>((resolve) => {
       releaseCurrent = resolve;
@@ -268,18 +268,42 @@ export class DbManager {
       .catch(() => undefined)
       .then(() => current);
 
-    this.playRecordMutationQueues.set(userName, queueTail);
+    queues.set(queueKey, queueTail);
     await previous?.catch(() => undefined);
     await this.ensureMigrated();
 
     try {
-      return await this.runDistributedPlayRecordMutation(userName, mutation);
+      return await mutation();
     } finally {
       releaseCurrent();
-      if (this.playRecordMutationQueues.get(userName) === queueTail) {
-        this.playRecordMutationQueues.delete(userName);
+      if (queues.get(queueKey) === queueTail) {
+        queues.delete(queueKey);
       }
     }
+  }
+
+  private runPlayRecordMutation<T>(
+    userName: string,
+    mutation: () => Promise<T>
+  ): Promise<T> {
+    return this.enqueueMutation(this.playRecordMutationQueues, userName, () =>
+      this.runDistributedPlayRecordMutation(userName, mutation)
+    );
+  }
+
+  /** 收藏的讀改寫與播放紀錄分開上鎖，避免和播放進度鎖互相等待。 */
+  private runFavoriteMutation<T>(
+    userName: string,
+    mutation: () => Promise<T>
+  ): Promise<T> {
+    return this.enqueueMutation(this.favoriteMutationQueues, userName, () =>
+      this.runWithDistributedLock(`lock:favorites:${userName}`, mutation, {
+        ttlMs: PLAY_RECORD_LOCK_TTL_MS,
+        heartbeatMs: PLAY_RECORD_LOCK_HEARTBEAT_MS,
+        acquireTimeoutMs: PLAY_RECORD_LOCK_ACQUIRE_TIMEOUT_MS,
+        retryMs: PLAY_RECORD_LOCK_RETRY_MS,
+      })
+    );
   }
 
   private async runDistributedPlayRecordMutation<T>(
@@ -335,7 +359,8 @@ export class DbManager {
       await this.runWithDistributedLock('lock:cron', fn, {
         ttlMs: 10 * 60 * 1000,
         heartbeatMs: 20 * 1000,
-        acquireTimeoutMs: 250,
+        // Redis 連線失敗會先等 1 秒再重試。逾時太短會把這次重試誤判成鎖被佔用。
+        acquireTimeoutMs: 2_000,
         retryMs: 50,
       });
       return 'ran';
@@ -453,8 +478,8 @@ export class DbManager {
     // mutation 本身的錯誤優先回報：它才是呼叫端需要看到的根因。
     // 反過來先丟 StorageLockLostError 會把真正的失敗原因整個吃掉。
     if (mutationFailed) throw mutationError;
+    // 鎖還在自己手上且已釋放，代表寫入已落地。心跳暫時失敗不該再把成功寫入報成錯誤。
     if (!released) throw new StorageLockLostError(lockKey);
-    if (heartbeatError) throw heartbeatError;
     return result;
   }
 
@@ -556,16 +581,15 @@ export class DbManager {
       return next;
     });
 
-    await this.ensureMigrated();
-    const favoriteKey = createStorageKey(source, id);
-    let favorite = await this.storage.getFavorite(userName, favoriteKey);
-    if (favorite && favorite.origin !== 'live') {
-      const result = acknowledgeSeenEpisodes(favorite, seenTotal);
-      if (result.changed) {
-        favorite = result.next;
-        await this.storage.setFavorite(userName, favoriteKey, favorite);
-      }
-    }
+    const favorite = await this.runFavoriteMutation(userName, async () => {
+      const favoriteKey = createStorageKey(source, id);
+      const existing = await this.storage.getFavorite(userName, favoriteKey);
+      if (!existing || existing.origin === 'live') return existing;
+      const result = acknowledgeSeenEpisodes(existing, seenTotal);
+      if (!result.changed) return existing;
+      await this.storage.setFavorite(userName, favoriteKey, result.next);
+      return result.next;
+    });
 
     return { playRecord, favorite };
   }
@@ -593,8 +617,7 @@ export class DbManager {
           if (!record) continue;
           const parsedKey = parseStorageKey(key);
           const recordSource = record.source || parsedKey?.source || '';
-          const recordId =
-            record.vod_id || (record as any).id || parsedKey?.id || '';
+          const recordId = record.vod_id || record.id || parsedKey?.id || '';
           if (recordSource === source && String(recordId) === String(id)) {
             keysToDelete.add(key);
           }
@@ -660,12 +683,13 @@ export class DbManager {
     id: string,
     favorite: Favorite
   ): Promise<Favorite> {
-    await this.ensureMigrated();
-    const key = generateStorageKey(source, id);
-    const existing = await this.storage.getFavorite(userName, key);
-    const merged = mergeSeenFavorite(existing, favorite);
-    await this.storage.setFavorite(userName, key, merged);
-    return merged;
+    return this.runFavoriteMutation(userName, async () => {
+      const key = generateStorageKey(source, id);
+      const existing = await this.storage.getFavorite(userName, key);
+      const merged = mergeSeenFavorite(existing, favorite);
+      await this.storage.setFavorite(userName, key, merged);
+      return merged;
+    });
   }
 
   /**
@@ -682,25 +706,26 @@ export class DbManager {
       year?: string;
     }
   ): Promise<boolean> {
-    await this.ensureMigrated();
-    const key = generateStorageKey(source, id);
-    const existing = await this.storage.getFavorite(userName, key);
-    if (!existing || existing.origin === 'live') return false;
+    return this.runFavoriteMutation(userName, async () => {
+      const key = generateStorageKey(source, id);
+      const existing = await this.storage.getFavorite(userName, key);
+      if (!existing || existing.origin === 'live') return false;
 
-    const refreshed = applyDiscoveredEpisodeCount(
-      existing,
-      patch.total_episodes
-    );
-    if (!refreshed.changed) return false;
+      const refreshed = applyDiscoveredEpisodeCount(
+        existing,
+        patch.total_episodes
+      );
+      if (!refreshed.changed) return false;
 
-    const title = patch.title?.trim();
-    await this.storage.setFavorite(userName, key, {
-      ...refreshed.next,
-      title: title || existing.title,
-      cover: patch.cover || existing.cover,
-      year: patch.year || existing.year,
+      const title = patch.title?.trim();
+      await this.storage.setFavorite(userName, key, {
+        ...refreshed.next,
+        title: title || existing.title,
+        cover: patch.cover || existing.cover,
+        year: patch.year || existing.year,
+      });
+      return true;
     });
-    return true;
   }
 
   async getAllFavorites(
@@ -715,14 +740,16 @@ export class DbManager {
     source: string,
     id: string
   ): Promise<void> {
-    await this.ensureMigrated();
-    const key = generateStorageKey(source, id);
-    await this.storage.deleteFavorite(userName, key);
+    await this.runFavoriteMutation(userName, async () => {
+      const key = generateStorageKey(source, id);
+      await this.storage.deleteFavorite(userName, key);
+    });
   }
 
   async deleteAllFavorites(userName: string): Promise<void> {
-    await this.ensureMigrated();
-    await this.storage.deleteAllFavorites(userName);
+    await this.runFavoriteMutation(userName, () =>
+      this.storage.deleteAllFavorites(userName)
+    );
   }
 
   async isFavorited(
@@ -772,43 +799,30 @@ export class DbManager {
   // 获取全部用户名
   async getAllUsers(): Promise<string[]> {
     await this.ensureMigrated();
-    if (typeof (this.storage as any).getAllUsers === 'function') {
-      return (this.storage as any).getAllUsers();
-    }
-    return [];
+    return this.storage.getAllUsers();
   }
 
   // ---------- 管理员設定 ----------
   async getAdminConfig(): Promise<AdminConfig | null> {
-    if (typeof (this.storage as any).getAdminConfig === 'function') {
-      return (this.storage as any).getAdminConfig();
-    }
-    return null;
+    return this.storage.getAdminConfig();
   }
 
   async saveAdminConfig(config: AdminConfig): Promise<void> {
-    if (typeof (this.storage as any).setAdminConfig === 'function') {
-      await (this.storage as any).setAdminConfig(config);
-    }
+    await this.storage.setAdminConfig(config);
   }
 
-  // ---------- 跳过片头片尾設定 ----------
+  // ---------- Bangumi 別名快取 ----------
   async getBangumiAliasCache(
     bangumiId: string
   ): Promise<BangumiAliasCacheEntry | null> {
-    if (typeof (this.storage as any).getBangumiAliasCache === 'function') {
-      return (this.storage as any).getBangumiAliasCache(bangumiId);
-    }
-    return null;
+    return this.storage.getBangumiAliasCache(bangumiId);
   }
 
   async setBangumiAliasCache(
     bangumiId: string,
     entry: BangumiAliasCacheEntry
   ): Promise<void> {
-    if (typeof (this.storage as any).setBangumiAliasCache === 'function') {
-      await (this.storage as any).setBangumiAliasCache(bangumiId, entry);
-    }
+    await this.storage.setBangumiAliasCache(bangumiId, entry);
   }
 
   async getSkipConfig(
@@ -817,10 +831,7 @@ export class DbManager {
     id: string
   ): Promise<SkipConfig | null> {
     await this.ensureMigrated();
-    if (typeof (this.storage as any).getSkipConfig === 'function') {
-      return (this.storage as any).getSkipConfig(userName, source, id);
-    }
-    return null;
+    return this.storage.getSkipConfig(userName, source, id);
   }
 
   async setSkipConfig(
@@ -830,9 +841,7 @@ export class DbManager {
     config: SkipConfig
   ): Promise<void> {
     await this.ensureMigrated();
-    if (typeof (this.storage as any).setSkipConfig === 'function') {
-      await (this.storage as any).setSkipConfig(userName, source, id, config);
-    }
+    await this.storage.setSkipConfig(userName, source, id, config);
   }
 
   async deleteSkipConfig(
@@ -841,28 +850,19 @@ export class DbManager {
     id: string
   ): Promise<void> {
     await this.ensureMigrated();
-    if (typeof (this.storage as any).deleteSkipConfig === 'function') {
-      await (this.storage as any).deleteSkipConfig(userName, source, id);
-    }
+    await this.storage.deleteSkipConfig(userName, source, id);
   }
 
   async getAllSkipConfigs(
     userName: string
   ): Promise<{ [key: string]: SkipConfig }> {
     await this.ensureMigrated();
-    if (typeof (this.storage as any).getAllSkipConfigs === 'function') {
-      return (this.storage as any).getAllSkipConfigs(userName);
-    }
-    return {};
+    return this.storage.getAllSkipConfigs(userName);
   }
 
   // ---------- 数据清理 ----------
   async clearAllData(): Promise<void> {
-    if (typeof (this.storage as any).clearAllData === 'function') {
-      await (this.storage as any).clearAllData();
-    } else {
-      throw new Error('儲存類型不支援清空資料操作');
-    }
+    await this.storage.clearAllData();
   }
 }
 

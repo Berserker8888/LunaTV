@@ -18,6 +18,7 @@ import {
 import { useMounted } from '@/hooks/useClientMount';
 
 import ChangePasswordCard from '@/components/ChangePasswordCard';
+import { SkipTemplateCard } from '@/components/SkipTemplateCard';
 
 const DATA_PROXY_OPTIONS = [
   { value: 'direct', label: '直連（伺服器直接請求豆瓣）' },
@@ -264,6 +265,8 @@ export default function SettingsPage() {
             onChange={setIptvDirect}
           />
         </div>
+
+        <SkipTemplateCard />
 
         {/* 帳號：自助改密（站長與 localstorage 模式不顯示，見元件內註解） */}
         <ChangePasswordCard />

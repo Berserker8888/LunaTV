@@ -38,6 +38,14 @@ export function filterAdsFromM3U8Detailed(
 
   const isKeyTag = (line: string) => /^#EXT-X-KEY\b/i.test(line);
 
+  const isPlaylistLevelTag = (line: string) =>
+    /^#EXTM3U\b/i.test(line) ||
+    /^#EXT-X-VERSION\b/i.test(line) ||
+    /^#EXT-X-TARGETDURATION\b/i.test(line) ||
+    /^#EXT-X-MEDIA-SEQUENCE\b/i.test(line) ||
+    /^#EXT-X-PLAYLIST-TYPE\b/i.test(line) ||
+    /^#EXT-X-ENDLIST\b/i.test(line);
+
   const getKeyMethod = (line: string) => {
     const match = line.match(/\bMETHOD=([^,\s]+)/i);
     return match?.[1]?.replace(/^"|"$/g, '').toUpperCase() || '';
@@ -46,8 +54,11 @@ export function filterAdsFromM3U8Detailed(
   const hasPendingDiscontinuity = () =>
     pendingSegmentTags.some((tag) => /^#EXT-X-DISCONTINUITY\b/i.test(tag));
 
-  const visiblePendingSegmentTags = () =>
-    pendingSegmentTags.filter((tag) => !isDiscontinuity(tag));
+  const flushPendingTags = () => {
+    const tags = pendingSegmentTags;
+    pendingSegmentTags = [];
+    return tags;
+  };
 
   const isAdDaterange = (line: string) =>
     /^#EXT-X-DATERANGE\b/i.test(line) &&
@@ -104,15 +115,13 @@ export function filterAdsFromM3U8Detailed(
         inAdBreak = false;
         keyStartedAdBreak = false;
         cueOutSegmentCount = 0;
-        filteredLines.push(...visiblePendingSegmentTags(), line);
-        pendingSegmentTags = [];
+        filteredLines.push(...flushPendingTags(), line);
         hasEncryptedContent = true;
         continue;
       }
 
       if (!inAdBreak) {
-        filteredLines.push(...visiblePendingSegmentTags(), line);
-        pendingSegmentTags = [];
+        filteredLines.push(...flushPendingTags(), line);
       }
 
       if (isEncryptedMethod) {
@@ -132,8 +141,7 @@ export function filterAdsFromM3U8Detailed(
           inAdBreak = false;
           keyStartedAdBreak = false;
           cueOutSegmentCount = 0;
-          filteredLines.push(...visiblePendingSegmentTags(), line);
-          pendingSegmentTags = [];
+          filteredLines.push(...flushPendingTags(), line);
           continue;
         }
 
@@ -143,8 +151,7 @@ export function filterAdsFromM3U8Detailed(
         continue;
       }
 
-      filteredLines.push(...visiblePendingSegmentTags(), line);
-      pendingSegmentTags = [];
+      filteredLines.push(...flushPendingTags(), line);
       continue;
     }
 
@@ -153,14 +160,24 @@ export function filterAdsFromM3U8Detailed(
       continue;
     }
 
-    if (!inAdBreak) {
-      filteredLines.push(...visiblePendingSegmentTags(), line);
+    // 廣告區間還沒收到 CUE-IN 時，片尾標記也要留下，否則播放器會把它當成直播。
+    if (isPlaylistLevelTag(line)) {
+      if (!inAdBreak) {
+        filteredLines.push(...flushPendingTags());
+      }
+      filteredLines.push(line);
+      continue;
     }
-    pendingSegmentTags = [];
+
+    if (!inAdBreak) {
+      filteredLines.push(...flushPendingTags(), line);
+    } else {
+      pendingSegmentTags = [];
+    }
   }
 
   if (!inAdBreak && pendingSegmentTags.length > 0) {
-    filteredLines.push(...visiblePendingSegmentTags());
+    filteredLines.push(...flushPendingTags());
   }
 
   return {

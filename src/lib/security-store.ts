@@ -76,14 +76,16 @@ export async function getSessionVersion(username: string): Promise<number> {
     const value = Number(await upstash.get<number>(key));
     if (Number.isInteger(value) && value > 0) return value;
     await upstash.set(key, 1, { nx: true });
-    return 1;
+    const stored = Number(await upstash.get<number>(key));
+    return Number.isInteger(stored) && stored > 0 ? stored : 1;
   }
   const redis = await getRedisClient();
   if (redis) {
     const value = Number(await redis.get(key));
     if (Number.isInteger(value) && value > 0) return value;
     await redis.set(key, '1', { NX: true });
-    return 1;
+    const stored = Number(await redis.get(key));
+    return Number.isInteger(stored) && stored > 0 ? stored : 1;
   }
   return memoryVersions.get(username) || 1;
 }

@@ -33,7 +33,6 @@ export const yellowWords = [
   '福利片',
   '写真热舞',
   '寫真熱舞',
-  '倫理片',
   '理论片',
   '理論片',
   '韩国伦理',
@@ -47,3 +46,8 @@ export const yellowWords = [
   '日本伦理',
   '日本倫理',
 ];
+
+export function isYellowTypeName(typeName?: string | null): boolean {
+  if (!typeName) return false;
+  return yellowWords.some((word) => typeName.includes(word));
+}

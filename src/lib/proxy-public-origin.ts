@@ -1,4 +1,4 @@
-import { isTrustedProxy } from './same-site';
+import { isTrustedProxy, nearestForwardedToken } from './same-site';
 
 /**
  * 重寫 m3u8 分片／金鑰代理網址時用的對外 origin。
@@ -11,10 +11,10 @@ export function resolvePublicProxyOrigin(
   const requestUrl = new URL(req.url);
   const trustProxy = isTrustedProxy(env);
   const forwardedProtocol = trustProxy
-    ? req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+    ? nearestForwardedToken(req.headers.get('x-forwarded-proto'))
     : undefined;
   const forwardedHost = trustProxy
-    ? req.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+    ? nearestForwardedToken(req.headers.get('x-forwarded-host'))
     : undefined;
 
   const protocol =

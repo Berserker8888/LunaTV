@@ -71,6 +71,20 @@ export function getWatchProgress(record: {
   return Math.min(100, Math.max(0, Math.round((played / total) * 100)));
 }
 
+export function scrollRowBy(
+  element: HTMLElement | null,
+  direction: 'left' | 'right'
+): void {
+  const width = element?.clientWidth || 400;
+  element?.scrollBy({
+    left:
+      direction === 'left'
+        ? -Math.round(width * 0.85)
+        : Math.round(width * 0.85),
+    behavior: 'smooth',
+  });
+}
+
 export const DETAIL_CACHE_KEYS = [
   'berserker_detail_cache',
   'luna_detail_cache',
