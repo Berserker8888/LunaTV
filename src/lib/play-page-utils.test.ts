@@ -10,6 +10,7 @@ import {
   getLiveHlsBufferConfig,
   getLoadedEpisodeCount,
   getResultEpisodeCount,
+  getSourceProbeView,
   getStableTitle,
   getVodHlsBufferConfig,
   hydrateSearchResultEpisodes,
@@ -487,6 +488,33 @@ describe('畫質優先過濾（換源列表）', () => {
         excludeKeys: ['dead-2'],
       })
     ).toEqual({ source: 'ok', id: '3' });
+  });
+
+  it('量不到畫質時標成可播放，不把慢源標成不能用', () => {
+    expect(
+      getSourceProbeView(
+        { quality: '未知', loadSpeed: '999.9 KB/s', pingTime: 1678 },
+        true
+      )
+    ).toMatchObject({
+      quality: null,
+      speed: '999.9 KB/s',
+      note: '可播放',
+      noteTone: 'muted',
+    });
+    expect(getSourceProbeView(undefined, true).note).toBe('可播放');
+    expect(
+      getSourceProbeView(
+        { quality: '1080p', loadSpeed: '1.2 MB/s', pingTime: 1800 },
+        true
+      ).note
+    ).toBeNull();
+    expect(
+      getSourceProbeView(
+        { quality: '1080p', loadSpeed: '1.2 MB/s', pingTime: 200 },
+        true
+      ).note
+    ).toBe('較穩定');
   });
 
   it('識別 1080p+ 與低畫質', () => {

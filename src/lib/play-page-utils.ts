@@ -438,6 +438,65 @@ export function filterSourcesPreferHighQuality<
 
 const UNKNOWN_SPEED_LABELS = new Set(['未知', '測量中...']);
 
+export type SourceProbeView = {
+  quality: string | null;
+  speed: string | null;
+  ping: string | null;
+  note: string | null;
+  noteTone: 'muted' | 'good' | 'bad';
+};
+
+/** 換源卡片上的測速呈現。量不到畫質仍是可播放，只有連線失敗才標成不能用。 */
+export function getSourceProbeView(
+  info:
+    | {
+        quality: string;
+        loadSpeed: string;
+        pingTime: number;
+        hasError?: boolean;
+      }
+    | undefined,
+  attempted: boolean
+): SourceProbeView {
+  if (info?.hasError) {
+    return {
+      quality: null,
+      speed: null,
+      ping: null,
+      note: '無法連線',
+      noteTone: 'bad',
+    };
+  }
+  if (!info) {
+    return {
+      quality: null,
+      speed: null,
+      ping: null,
+      note: attempted ? '可播放' : '測速中…',
+      noteTone: 'muted',
+    };
+  }
+
+  const quality =
+    info.quality && !UNKNOWN_SPEED_LABELS.has(info.quality)
+      ? info.quality
+      : null;
+  const speed =
+    info.loadSpeed && !UNKNOWN_SPEED_LABELS.has(info.loadSpeed)
+      ? info.loadSpeed
+      : null;
+  const ping = info.pingTime > 0 ? `${info.pingTime}ms` : null;
+  const fast = info.pingTime > 0 && info.pingTime <= 1500;
+
+  return {
+    quality,
+    speed,
+    ping,
+    note: quality ? (fast ? '較穩定' : null) : '可播放',
+    noteTone: quality && fast ? 'good' : 'muted',
+  };
+}
+
 export function getStableTitle(
   ...titles: Array<string | undefined | null>
 ): string {

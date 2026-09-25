@@ -14,6 +14,7 @@ import {
   filterSourcesPreferHighQuality,
   getDisplayedSourceEpisodeCount,
   getEpisodeSelectorCounts,
+  getSourceProbeView,
   hydrateSearchResultEpisodes,
   hydrateSearchResultEpisodesWithRetry,
   needsEpisodeHydration,
@@ -752,6 +753,18 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                     currentSource?.toString() &&
                   displaySource.id?.toString() === currentId?.toString();
                 const videoInfo = videoInfoMap.get(sourceKey);
+                const probe = getSourceProbeView(
+                  videoInfo,
+                  attemptedSources.has(sourceKey)
+                );
+                const qualityClass =
+                  probe.quality === '4K' || probe.quality === '2K'
+                    ? 'bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/40'
+                    : probe.quality === '1080p'
+                      ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40'
+                      : probe.quality === '720p'
+                        ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-400/40'
+                        : 'bg-yellow-500/20 text-yellow-200 ring-1 ring-yellow-400/40';
                 return (
                   <div
                     key={sourceKey}
@@ -835,57 +848,38 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                         ) : null}
                       </div>
 
-                      {/* 底欄：統一三格指標（畫質標籤、速度、延遲、穩定度） */}
+                      {/* 底欄：有畫質才顯示畫質。量不到不標成故障。 */}
                       <div className='flex items-center gap-2 flex-wrap text-[11px]'>
-                        {videoInfo && !videoInfo.hasError && (
-                          <>
-                            <span
-                              className={`px-2 py-0.5 rounded font-bold ${
-                                ['4K', '2K'].includes(videoInfo.quality)
-                                  ? 'bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/40'
-                                  : videoInfo.quality === '1080p'
-                                    ? 'bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/40'
-                                    : videoInfo.quality === '720p'
-                                      ? 'bg-sky-500/20 text-sky-200 ring-1 ring-sky-400/40'
-                                      : videoInfo.quality === '未知'
-                                        ? 'bg-zinc-800 text-zinc-400 border border-white/5'
-                                        : 'bg-yellow-500/20 text-yellow-200 ring-1 ring-yellow-400/40'
-                              }`}
-                            >
-                              {videoInfo.quality !== '未知'
-                                ? videoInfo.quality
-                                : '未測得'}
-                            </span>
-                            <span className='text-emerald-300 font-medium tabular-nums'>
-                              {videoInfo.loadSpeed}
-                            </span>
-                            <span className='text-orange-300 font-medium tabular-nums'>
-                              {videoInfo.pingTime}ms
-                            </span>
-                          </>
-                        )}
-                        {videoInfo?.hasError && (
-                          <span className='px-2 py-0.5 rounded font-semibold bg-red-500/20 text-red-200 ring-1 ring-red-400/40'>
-                            無法連線
+                        {probe.quality && (
+                          <span
+                            className={`px-2 py-0.5 rounded font-bold ${qualityClass}`}
+                          >
+                            {probe.quality}
                           </span>
                         )}
-                        {!videoInfo && !attemptedSources.has(sourceKey) && (
-                          <span className='text-zinc-500'>測速中…</span>
+                        {probe.speed && (
+                          <span className='text-zinc-300 font-medium tabular-nums'>
+                            {probe.speed}
+                          </span>
                         )}
-                        {videoInfo &&
-                          !videoInfo.hasError &&
-                          videoInfo.pingTime <= 1500 && (
-                            <span className='rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300'>
-                              較穩定
-                            </span>
-                          )}
-                        {videoInfo &&
-                          !videoInfo.hasError &&
-                          videoInfo.pingTime > 1500 && (
-                            <span className='rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300'>
-                              回應較慢
-                            </span>
-                          )}
+                        {probe.ping && (
+                          <span className='text-zinc-400 font-medium tabular-nums'>
+                            {probe.ping}
+                          </span>
+                        )}
+                        {probe.note && (
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
+                              probe.noteTone === 'bad'
+                                ? 'bg-red-500/20 text-red-200 ring-1 ring-red-400/40'
+                                : probe.noteTone === 'good'
+                                  ? 'bg-emerald-500/15 text-emerald-300'
+                                  : 'text-zinc-400'
+                            }`}
+                          >
+                            {probe.note}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

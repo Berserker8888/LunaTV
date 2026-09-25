@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.3',
+    date: '2026-09-25',
+    content: `
+- 換源：找到第一批片源後，其餘查詢改在背景繼續補，對得上的片源會陸續出現。
+- 換源：量不到畫質或測速失敗改標「可播放」。只有真的連不上才標「無法連線」。
+    `.trim(),
+  },
+  {
     version: 'v3.6.2',
     date: '2026-09-24',
     content: `

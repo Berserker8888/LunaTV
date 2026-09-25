@@ -4,7 +4,7 @@
   <h1>LunaTV</h1>
   <p><strong>為繁體中文使用者優化的自架影音聚合平台</strong></p>
 
-![Version](https://img.shields.io/badge/Version-3.6.2-blue)
+![Version](https://img.shields.io/badge/Version-3.6.3-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)
 ![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ed?logo=docker)

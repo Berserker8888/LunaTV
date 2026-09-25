@@ -830,56 +830,55 @@ function PlayPageClient() {
           }
         }
 
-        if (!detailData) {
-          const searchedQueries = new Set<string>();
-          const searchQueries = async (
-            queries: string[],
-            searchOptions: {
-              directSearch?: boolean;
-              translationFallback?: boolean;
-            } = {}
-          ) => {
-            for (const query of queries) {
-              const queryKey = query.trim();
-              if (!queryKey || searchedQueries.has(queryKey)) continue;
-              searchedQueries.add(queryKey);
+        const searchedQueries = new Set<string>();
+        const searchQueries = async (
+          queries: string[],
+          searchOptions: {
+            directSearch?: boolean;
+            translationFallback?: boolean;
+          } = {}
+        ) => {
+          for (const query of queries) {
+            const queryKey = query.trim();
+            if (!queryKey || searchedQueries.has(queryKey)) continue;
+            searchedQueries.add(queryKey);
 
-              const queryResults = await fetchSourcesData(
-                query,
-                (newResults) => {
-                  setAvailableSources((prev) =>
-                    deduplicateResults([...prev, ...newResults])
-                  );
-                },
-                {
-                  strictCardMatch: isBangumiCardSearch,
-                  directSearch: searchOptions.directSearch,
-                  translationFallback: searchOptions.translationFallback,
-                }
-              );
-
-              if (queryResults.length > 0) {
-                sourcesInfo = deduplicateResults([
-                  ...sourcesInfo,
-                  ...queryResults,
-                ]);
+            const queryResults = await fetchSourcesData(
+              query,
+              (newResults) => {
+                setAvailableSources((prev) =>
+                  deduplicateResults([...prev, ...newResults])
+                );
+              },
+              {
+                strictCardMatch: isBangumiCardSearch,
+                directSearch: searchOptions.directSearch,
+                translationFallback: searchOptions.translationFallback,
               }
-            }
-          };
+            );
 
-          const executeSearchPlan = async (
-            stages: PlaybackSearchPlanStage[]
-          ) => {
-            for (const stage of stages) {
-              if (sourcesInfo.length > 0) break;
-              await searchQueries(stage.queries.slice(0, stage.limit), {
-                directSearch: stage.directSearch,
-                translationFallback: stage.translationFallback,
-              });
-              if (!active) return;
+            if (queryResults.length > 0) {
+              sourcesInfo = deduplicateResults([
+                ...sourcesInfo,
+                ...queryResults,
+              ]);
             }
-          };
+          }
+        };
 
+        const executeSearchPlan = async (stages: PlaybackSearchPlanStage[]) => {
+          for (const stage of stages) {
+            // 已有可播源就先停，讓播放開始。剩下的查詢交給背景補齊換源清單。
+            if (sourcesInfo.length > 0) break;
+            await searchQueries(stage.queries.slice(0, stage.limit), {
+              directSearch: stage.directSearch,
+              translationFallback: stage.translationFallback,
+            });
+            if (!active) return;
+          }
+        };
+
+        if (!detailData) {
           const shouldRunFastPlan =
             !currentSource || !currentId || needPreferRef.current;
           if (shouldRunFastPlan) {
@@ -914,8 +913,7 @@ function PlayPageClient() {
             );
           }
 
-          shouldCompleteSourceSearchInBackground =
-            isBangumiCardSearch && sourcesInfo.length > 0;
+          shouldCompleteSourceSearchInBackground = sourcesInfo.length > 0;
 
           if (
             currentSource &&
@@ -1185,43 +1183,24 @@ function PlayPageClient() {
               );
               if (!active) return;
 
-              // 2. 背景搜尋其他播放源 (維持原本邏輯，但使用最新的 currentDetail)
-              let bgSourcesInfo: SearchResult[] = [];
-              const backgroundStage = buildPlaybackSearchPlan({
+              // 2. 起播後把還沒跑過的換源查詢補完，避免第一批命中就放棄其餘片源
+              const remainingStages = buildPlaybackSearchPlan({
                 title: videoTitle || currentDetail.title,
                 searchTitle,
-                isBangumiCardSearch: false,
-              }).find((stage) => stage.reason === 'mainland');
-
-              for (const query of (backgroundStage?.queries || []).slice(
-                0,
-                backgroundStage?.limit || 0
-              )) {
-                const queryResults = await fetchSourcesData(
-                  query,
-                  (newResults) => {
-                    setAvailableSources((prev) =>
-                      deduplicateResults([...prev, ...newResults])
-                    );
-                  },
-                  {
-                    strictCardMatch: isBangumiCardSearch,
-                    directSearch: backgroundStage?.directSearch,
-                  }
-                );
+                aliases: bangumiSearchAliasesRef.current,
+                isBangumiCardSearch,
+              });
+              for (const stage of remainingStages) {
                 if (!active) return;
-
-                if (queryResults.length > 0) {
-                  bgSourcesInfo = deduplicateResults([
-                    ...bgSourcesInfo,
-                    ...queryResults,
-                  ]);
-                }
+                await searchQueries(stage.queries.slice(0, stage.limit), {
+                  directSearch: stage.directSearch,
+                  translationFallback: stage.translationFallback,
+                });
               }
 
               setAvailableSources((prev) =>
                 mergePlayingSourceIntoAvailableSources(
-                  bgSourcesInfo,
+                  sourcesInfo,
                   currentDetail,
                   prev
                 )
