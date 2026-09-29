@@ -23,7 +23,10 @@ export async function GET(request: Request) {
   if (!access.ok) return access.response;
 
   const { url, source, kind, fetchHeaders, rememberHost } = access;
+  // allowCORS 預設關閉：開啟會讓播放清單內嵌上游原始 URL（含簽名 token）
+  // 而不走代理。僅在管理員以環境變數明確允許時才接受該查詢參數。
   const allowCORS =
+    process.env.PROXY_ALLOW_CORS === 'true' &&
     new URL(request.url).searchParams.get('allowCORS') === 'true';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), M3U8_FETCH_TIMEOUT_MS);
@@ -82,17 +85,10 @@ export async function GET(request: Request) {
 
     const headers = new Headers();
     headers.set('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
-    headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    headers.set(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Range, Origin, Accept'
-    );
+    // 不再送 Access-Control-Allow-Origin: * ——站內播放為同源請求不需要 CORS；
+    // 之前任何第三方網站都能透過訪客瀏覽器讀取代理後的播放清單。
+    // 若有可信的跨站播放需求，請改為回傳該來源的 Origin 並限縮方法。
     headers.set('Cache-Control', 'no-cache');
-    headers.set(
-      'Access-Control-Expose-Headers',
-      'Content-Length, Content-Range'
-    );
 
     return new Response(modifiedContent, { headers });
   } catch (error) {

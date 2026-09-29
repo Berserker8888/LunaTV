@@ -115,24 +115,21 @@ export async function POST(req: NextRequest) {
   try {
     // 速率限制檢查
     const clientIp = getClientIp(req);
-    const isE2ETest = process.env.PASSWORD === 'e2e-test-password';
+    // E2E 測試豁免改用獨立環境變數：密碼值是公開約定，任何人都能藉此關掉暴力破解限流
+    const isE2ETest = process.env.E2E_TEST_MODE === 'true';
     // 本地 / localStorage 模式——僅校驗固定密碼
     if (STORAGE_TYPE === 'localstorage') {
       const envPassword = process.env.PASSWORD;
 
-      // 未設定 PASSWORD 時直接放行
+      // 未設定 PASSWORD 時拒絕登入（不再直接放行），請管理員先設定密碼
       if (!envPassword) {
-        const response = NextResponse.json({ ok: true });
-        const expired = new Date(0);
-
-        response.cookies.set('auth', '', getAuthCookieOptions(req, expired));
-        response.cookies.set(
-          'user_info',
-          '',
-          getUserInfoCookieOptions(req, expired)
+        return NextResponse.json(
+          {
+            ok: false,
+            error: '尚未設定管理員密碼，請先設定 PASSWORD 環境變數',
+          },
+          { status: 503 }
         );
-
-        return response;
       }
 
       let body: unknown;

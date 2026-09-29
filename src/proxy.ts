@@ -21,7 +21,14 @@ export async function proxy(request: NextRequest) {
   const storageType = getServerStorageType();
 
   if (!process.env.PASSWORD?.trim()) {
-    // 如果沒有設定密碼，重新導向到警告頁面
+    // 如果沒有設定密碼：API 回 503（避免 API 客戶端收到 307 跳轉），
+    // 頁面請求才導向警告頁面
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: '尚未設定管理員密碼，請先設定 PASSWORD 環境變數' },
+        { status: 503 }
+      );
+    }
     const warningUrl = new URL('/warning', request.url);
     return NextResponse.redirect(warningUrl);
   }

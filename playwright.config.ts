@@ -12,7 +12,7 @@ const standaloneCommand = [
   "mkdirSync(p.join('.next','standalone','.next'),{recursive:true});",
   "cpSync('public',p.join('.next','standalone','public'),{recursive:true});",
   "cpSync(p.join('.next','static'),p.join('.next','standalone','.next','static'),{recursive:true});",
-  "writeFileSync(p.join('.next','standalone','.env.local'),'PASSWORD=e2e-test-password\\nNEXT_PUBLIC_STORAGE_TYPE=localstorage\\n');",
+  "writeFileSync(p.join('.next','standalone','.env.local'),'PASSWORD=e2e-test-password\\nE2E_TEST_MODE=true\\nNEXT_PUBLIC_STORAGE_TYPE=localstorage\\n');",
   '"',
   '&& node .next/standalone/server.js',
 ].join('');
@@ -48,6 +48,8 @@ export default defineConfig({
       CI: process.env.CI || 'true',
       ...(isStandalone ? { PORT: '3100', HOSTNAME: '127.0.0.1' } : {}),
       USERNAME: process.env.USERNAME || 'e2e-test-admin',
+      // E2E 測試豁免登入限流改用獨立開關（見 src/app/api/login/route.ts）
+      E2E_TEST_MODE: 'true',
       PASSWORD: 'e2e-test-password',
       NEXT_PUBLIC_STORAGE_TYPE: 'localstorage',
     },
