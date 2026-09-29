@@ -6,6 +6,16 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.4',
+    date: '2026-09-30',
+    content: `
+- 安全：登入限流的 E2E 測試豁免改用 E2E_TEST_MODE 環境變數，不再用公開密碼值當開關。
+- 安全：未設定 PASSWORD 時登入 API 回 503，不再直接放行；其他 API 回 503，頁面才導向警告頁。
+- 安全：m3u8 代理不再送 Access-Control-Allow-Origin: *。
+- 安全：m3u8 代理的 allowCORS 參數預設關閉，需設 PROXY_ALLOW_CORS=true 才啟用。
+    `.trim(),
+  },
+  {
     version: 'v3.6.3',
     date: '2026-09-25',
     content: `
