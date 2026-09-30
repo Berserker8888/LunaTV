@@ -337,6 +337,8 @@ function PlayPageClient() {
   >(null);
   const bangumiSearchAliasesRef = useRef<string[]>([]);
   const detailRetryKeyRef = useRef<string | null>(null);
+  // 播放途中錯誤的 failover 去重鍵（來源_集數_傳輸方式），避免同一狀態重複觸發
+  const midPlaybackFailoverKeyRef = useRef<string | null>(null);
   const sourceChangeRequestRef = useRef(0);
   const { toast } = useToast();
 
@@ -439,12 +441,32 @@ function PlayPageClient() {
 
   const beginEpisodePlaybackLoad = () => {
     setPlaybackSoftError(null);
+    // 重新載入即開始新的播放週期：清除播放途中錯誤的去重鍵，
+    // 否則同一傳輸方式的後續新錯誤會被永久壓掉（手動重試也無效）
+    midPlaybackFailoverKeyRef.current = null;
     setVideoLoadingStage('initing');
     setIsVideoLoading(true);
   };
 
   // 用於追蹤初始化 loading setTimeout，元件卸載時清理
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 續播 seek 相關的 setTimeout 追蹤（seek 後延遲 play、canplay 後恢復音量／倍速），
+  // 元件卸載時清掉，避免卸載後還操作播放器
+  const resumeTimerRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  const clearResumeTimers = () => {
+    resumeTimerRef.current.forEach((id) => clearTimeout(id));
+    resumeTimerRef.current.clear();
+  };
+
+  const scheduleResumeTimer = (fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      resumeTimerRef.current.delete(id);
+      fn();
+    }, ms);
+    resumeTimerRef.current.add(id);
+  };
 
   const artPlayerRef = useRef<any>(null);
   const artRef = useRef<HTMLDivElement | null>(null);
@@ -2462,7 +2484,7 @@ function PlayPageClient() {
           }
           if (outcome === 'seek') {
             logger.debug('成功恢復播放進度到:', target);
-            setTimeout(() => {
+            scheduleResumeTimer(() => {
               try {
                 artPlayerRef.current?.play();
               } catch {
@@ -2482,7 +2504,7 @@ function PlayPageClient() {
         clearPlaybackWatchdog();
         tryApplyResumeTime();
 
-        setTimeout(() => {
+        scheduleResumeTimer(() => {
           const currentPlayer = artPlayerRef.current;
           if (!currentPlayer) return;
           if (Math.abs(currentPlayer.volume - lastVolumeRef.current) > 0.01) {
@@ -2568,6 +2590,26 @@ function PlayPageClient() {
       artPlayerRef.current.on('error', (err: any) => {
         logger.error('播放器錯誤:', err);
         if (artPlayerRef.current.currentTime > 0) {
+          // 播放途中錯誤（網路中斷／解碼失敗）：先嘗試換傳輸方式，
+          // 不行再走 failover（自動換源或顯示可重試提示），不再無聲卡住。
+          // 去重鍵含傳輸方式：換傳輸後仍失敗可繼續往下走，同一狀態不重複觸發。
+          const failoverKey = `${currentSourceRef.current}_${currentIdRef.current}_${currentEpisodeIndexRef.current}_${detectVodTransport(videoUrl)}`;
+          if (midPlaybackFailoverKeyRef.current === failoverKey) {
+            return;
+          }
+          midPlaybackFailoverKeyRef.current = failoverKey;
+          if (currentSourceRef.current) {
+            const nextTransport = nextVodTransportOnNetworkError(
+              detectVodTransport(videoUrl),
+              Boolean(readCorsApiOriginFromBrowser())
+            );
+            if (nextTransport) {
+              setVodTransport(nextTransport);
+              setVodProxySlot(playbackSlotKey);
+              return;
+            }
+          }
+          applyPlaybackFailoverRef.current('hlsGiveUp', HLS_SOFT_ERROR_MESSAGE);
           return;
         }
         if (currentSourceRef.current) {
@@ -2754,6 +2796,9 @@ function PlayPageClient() {
       saveCurrentPlayProgress();
 
       releaseWakeLock();
+
+      // 清掉續播 seek 相關的延遲計時器，避免卸載後操作播放器
+      clearResumeTimers();
 
       // cleanupPlayer 內部會一併中止自動連播倒數
       cleanupPlayer(false);
