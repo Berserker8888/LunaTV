@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import MultiLevelSelector from './MultiLevelSelector';
 import WeekdaySelector from './WeekdaySelector';
@@ -140,49 +140,63 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
   };
 
   // 组件挂载时立即计算初始位置
-  useEffect(() => {
+  // 抽成 callback：掛載／type 變化／視窗 resize 都要重算膠囊指示器位置
+  const refreshIndicatorPositions = useCallback(() => {
+    const cleanups: Array<() => void> = [];
+    const track = (cleanup: (() => void) | undefined) => {
+      if (cleanup) cleanups.push(cleanup);
+    };
+
     // 主选择器初始位置
     if (type === 'movie') {
       const activeIndex = moviePrimaryOptions.findIndex(
         (opt) =>
           opt.value === (primarySelection || moviePrimaryOptions[0].value)
       );
-      updateIndicatorPosition(
-        activeIndex,
-        primaryContainerRef,
-        primaryButtonRefs,
-        setPrimaryIndicatorStyle
+      track(
+        updateIndicatorPosition(
+          activeIndex,
+          primaryContainerRef,
+          primaryButtonRefs,
+          setPrimaryIndicatorStyle
+        )
       );
     } else if (type === 'tv') {
       const activeIndex = tvPrimaryOptions.findIndex(
         (opt) => opt.value === (primarySelection || tvPrimaryOptions[1].value)
       );
-      updateIndicatorPosition(
-        activeIndex,
-        primaryContainerRef,
-        primaryButtonRefs,
-        setPrimaryIndicatorStyle
+      track(
+        updateIndicatorPosition(
+          activeIndex,
+          primaryContainerRef,
+          primaryButtonRefs,
+          setPrimaryIndicatorStyle
+        )
       );
     } else if (type === 'anime') {
       const activeIndex = animePrimaryOptions.findIndex(
         (opt) =>
           opt.value === (primarySelection || animePrimaryOptions[0].value)
       );
-      updateIndicatorPosition(
-        activeIndex,
-        primaryContainerRef,
-        primaryButtonRefs,
-        setPrimaryIndicatorStyle
+      track(
+        updateIndicatorPosition(
+          activeIndex,
+          primaryContainerRef,
+          primaryButtonRefs,
+          setPrimaryIndicatorStyle
+        )
       );
     } else if (type === 'show') {
       const activeIndex = showPrimaryOptions.findIndex(
         (opt) => opt.value === (primarySelection || showPrimaryOptions[1].value)
       );
-      updateIndicatorPosition(
-        activeIndex,
-        primaryContainerRef,
-        primaryButtonRefs,
-        setPrimaryIndicatorStyle
+      track(
+        updateIndicatorPosition(
+          activeIndex,
+          primaryContainerRef,
+          primaryButtonRefs,
+          setPrimaryIndicatorStyle
+        )
       );
     }
 
@@ -206,14 +220,39 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
     }
 
     if (secondaryActiveIndex >= 0) {
-      updateIndicatorPosition(
-        secondaryActiveIndex,
-        secondaryContainerRef,
-        secondaryButtonRefs,
-        setSecondaryIndicatorStyle
+      track(
+        updateIndicatorPosition(
+          secondaryActiveIndex,
+          secondaryContainerRef,
+          secondaryButtonRefs,
+          setSecondaryIndicatorStyle
+        )
       );
     }
-  }, [type]); // 只在type變化時重新計算
+
+    // 清掉排程中的 timeout，避免卸載後還 setState
+    return () => {
+      cleanups.forEach((fn) => fn());
+    };
+  }, [type, primarySelection, secondarySelection]);
+
+  useEffect(() => {
+    return refreshIndicatorPositions();
+  }, [refreshIndicatorPositions]);
+
+  // 視窗大小變化時重算膠囊指示器位置（按鈕寬度／位置會變）
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    const handleResize = () => {
+      cleanup?.();
+      cleanup = refreshIndicatorPositions();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cleanup?.();
+    };
+  }, [refreshIndicatorPositions]);
 
   // 監聽主選擇器變化
   useEffect(() => {

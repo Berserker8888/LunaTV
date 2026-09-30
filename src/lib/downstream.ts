@@ -210,16 +210,21 @@ async function searchWithCache(
           }),
         controller.signal
       );
-      // 有收到 HTTP 回應即代表來源存活，重置熔斷計數
+      // 有收到 HTTP 回應即代表探測完成：非 2xx 也要回報，否則 half-open
+      // 的 probing 旗標永不清除、該片源會被永久跳過（只能重啟恢復）。
+      // 錯誤狀態計為失敗，讓持續出錯的來源能正常進入熔斷退避。
       if (!response.ok) {
         if (response.status === 403)
           setCachedSearchPage(apiSite.key, query, page, 'forbidden', []);
+        recordSourceFailure(apiSite.key);
         return { results: [] };
       }
       const data = await readResponseJsonWithLimit<any>(
         response,
         MAX_VOD_API_RESPONSE_BYTES
       );
+      // 2xx 且 JSON 合法才算成功（含空列表：來源存活、只是沒結果）。
+      // 非法 JSON 會在下方被 catch 計為失敗。
       recordSourceSuccess(apiSite.key);
       if (
         !data ||

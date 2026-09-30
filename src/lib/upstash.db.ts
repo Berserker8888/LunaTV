@@ -48,13 +48,17 @@ async function withRetry<T>(
       return await operation();
     } catch (err: any) {
       const isLastAttempt = i === maxRetries - 1;
+      const message: string = err?.message ?? '';
+      // WRONGTYPE 是確定性錯誤（key 的資料型別不對），重試多少次都不會成功
+      const isDeterministicError = message.includes('WRONGTYPE');
       const isConnectionError =
-        err.message?.includes('Connection') ||
-        err.message?.includes('ECONNREFUSED') ||
-        err.message?.includes('ENOTFOUND') ||
-        err.code === 'ECONNRESET' ||
-        err.code === 'EPIPE' ||
-        err.name === 'UpstashError';
+        !isDeterministicError &&
+        (message.includes('Connection') ||
+          message.includes('ECONNREFUSED') ||
+          message.includes('ENOTFOUND') ||
+          err.code === 'ECONNRESET' ||
+          err.code === 'EPIPE' ||
+          err.name === 'UpstashError');
 
       if (isConnectionError && !isLastAttempt) {
         console.log(

@@ -29,7 +29,9 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
     x: number;
     y: number;
     width: number;
-  }>({ x: 0, y: 0, width: 0 });
+    /** 面板是否向上翻轉：y 為 bottom 偏移；否則 y 為 top 偏移 */
+    flipUp: boolean;
+  }>({ x: 0, y: 0, width: 0, flipUp: false });
   const [values, setValues] = useState<Record<string, string>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -339,7 +341,9 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
     if (element) {
       const rect = element.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
       const isMobile = viewportWidth < 768; // md breakpoint
+      const gap = 4;
 
       let x = rect.left;
       let dropdownWidth = Math.max(rect.width, 300);
@@ -363,10 +367,17 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
         }
       }
 
+      // 下方空間放不下整個面板（面板最大高度 60vh）且上方空間較大時，向上翻轉
+      const maxPanelHeight = viewportHeight * 0.6;
+      const spaceBelow = viewportHeight - rect.bottom - gap;
+      const spaceAbove = rect.top - gap;
+      const flipUp = spaceBelow < maxPanelHeight && spaceAbove > spaceBelow;
+
       setDropdownPosition({
         x,
-        y: rect.bottom,
+        y: flipUp ? viewportHeight - rect.top + gap : rect.bottom + gap,
         width: useFixedWidth ? dropdownWidth : rect.width, // PC端保持原有邏輯
+        flipUp,
       });
     }
   };
@@ -554,11 +565,17 @@ const MultiLevelSelector: React.FC<MultiLevelSelectorProps> = ({
             className='fixed z-[9999] bg-zinc-950/95 rounded-xl border border-zinc-800 backdrop-blur-sm text-zinc-100 shadow-xl'
             style={{
               left: `${dropdownPosition.x}px`,
-              top: `${dropdownPosition.y}px`,
+              // 向上翻轉時用 bottom 定位，否則用 top 定位
+              ...(dropdownPosition.flipUp
+                ? { bottom: `${dropdownPosition.y}px` }
+                : { top: `${dropdownPosition.y}px` }),
               ...(window.innerWidth < 768
                 ? { width: `${dropdownPosition.width}px` } // 移動端使用固定寬度
                 : { minWidth: `${Math.max(dropdownPosition.width, 300)}px` }), // PC端使用最小寬度
               maxWidth: '600px',
+              // 面板內容可捲動，避免小螢幕選項過多時超出視口
+              maxHeight: '60vh',
+              overflowY: 'auto',
               position: 'fixed',
             }}
           >

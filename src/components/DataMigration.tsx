@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface DataMigrationProps {
-  onRefreshConfig?: () => Promise<void>;
+  onRefreshConfig?: () => Promise<unknown>;
 }
 
 interface AlertModalProps {
