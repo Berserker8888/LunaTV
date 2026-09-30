@@ -109,6 +109,8 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
   /** 使用者手動展開較低畫質片源（有 1080p+ 時預設隱藏） */
   const [showLowerQuality, setShowLowerQuality] = useState(false);
+  /** 手動重新測速的輪次：+1 即清空本輪測速標記全部重測 */
+  const [speedTestRound, setSpeedTestRound] = useState(0);
 
   const attemptedSourcesRef = useRef<Set<string>>(new Set());
   const speedTestInFlightRef = useRef<Set<string>>(new Set());
@@ -361,6 +363,16 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     return true;
   });
 
+  /** 手動重新測速：清空本輪測速標記與結果，全部源重跑（學二創的手動測速） */
+  const handleRetrySpeedTest = useCallback(() => {
+    triedSpeedTestUrlRef.current.clear();
+    speedTestInFlightRef.current.clear();
+    attemptedSourcesRef.current.clear();
+    setAttemptedSources(new Set());
+    setVideoInfoMap(new Map());
+    setSpeedTestRound((r) => r + 1);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const fetchVideoInfosInBatches = async () => {
@@ -394,7 +406,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [availableSources, getVideoInfo, optimizationEnabled]);
+  }, [availableSources, getVideoInfo, optimizationEnabled, speedTestRound]);
 
   const categoriesAsc = useMemo(() => {
     return Array.from({ length: pageCount }, (_, i) => {
@@ -727,24 +739,36 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                   正在補充搜尋其他可用片源...
                 </div>
               )}
-              {hiddenLowerQualityCount > 0 && (
-                <div className='flex items-center justify-between gap-2 px-0.5 pb-1'>
-                  <p className='text-[11px] text-zinc-500'>
-                    {showLowerQuality
+              {/* 頂欄：畫質提示＋重新測速（測速數據不全時可手動補齊） */}
+              <div className='flex items-center justify-between gap-2 px-0.5 pb-1'>
+                <p className='text-[11px] text-zinc-500'>
+                  {hiddenLowerQualityCount > 0
+                    ? showLowerQuality
                       ? '正在顯示全部畫質片源'
-                      : `已優先顯示 1080p 以上（另 ${hiddenLowerQualityCount} 個較低畫質）`}
-                  </p>
+                      : `已優先顯示 1080p 以上（另 ${hiddenLowerQualityCount} 個較低畫質）`
+                    : '即時測速，僅供參考'}
+                </p>
+                <div className='flex items-center gap-3 shrink-0'>
+                  {hiddenLowerQualityCount > 0 && (
+                    <button
+                      type='button'
+                      onClick={() => setShowLowerQuality((v) => !v)}
+                      className='text-[11px] font-medium text-accent hover:text-accent/80 transition-colors'
+                    >
+                      {showLowerQuality
+                        ? '只看高畫質'
+                        : `顯示較低畫質 (${hiddenLowerQualityCount})`}
+                    </button>
+                  )}
                   <button
                     type='button'
-                    onClick={() => setShowLowerQuality((v) => !v)}
-                    className='shrink-0 text-[11px] font-medium text-accent hover:text-accent/80 transition-colors'
+                    onClick={handleRetrySpeedTest}
+                    className='text-[11px] font-medium text-zinc-400 hover:text-white transition-colors'
                   >
-                    {showLowerQuality
-                      ? '只看高畫質'
-                      : `顯示較低畫質 (${hiddenLowerQualityCount})`}
+                    重新測速
                   </button>
                 </div>
-              )}
+              </div>
               {displayAvailableSources.map((source) => {
                 const sourceKey = `${source.source}-${source.id}`;
                 const displaySource = source;
