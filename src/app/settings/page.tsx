@@ -185,7 +185,10 @@ export default function SettingsPage() {
       clearStreamingSearchPreference(localStorage);
       localStorage.removeItem('iptvDirectConnect');
     } catch {
-      // 清除失敗不該擋住畫面上的重設；下方仍會把狀態還原為預設值
+      // localStorage 清除失敗（停用或配額爆掉）時不要報成功，
+      // 否則舊設定重整後會復活、使用者卻以為已重設
+      showSaveMessage('重設失敗，瀏覽器可能已停用或用盡本機儲存空間');
+      return;
     }
     setDoubanSource('cmliussss-cdn-tencent');
     setProxyUrl('');

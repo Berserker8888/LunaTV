@@ -143,14 +143,12 @@ export async function GET(request: NextRequest) {
           if (entry.error) {
             logger.warn(`搜尋失敗 ${entry.site.name}:`, entry.error);
             if (!streamClosed) {
+              // 不把上游原始錯誤吐給客戶端：細節已寫進伺服器日誌
               const errorEvent = `data: ${JSON.stringify({
                 type: 'source_error',
                 source: entry.site.key,
                 sourceName: entry.site.name,
-                error:
-                  entry.error instanceof Error
-                    ? entry.error.message
-                    : '搜尋失敗',
+                error: '搜尋失敗',
                 timestamp: Date.now(),
               })}\n\n`;
               safeEnqueue(encoder.encode(errorEvent));

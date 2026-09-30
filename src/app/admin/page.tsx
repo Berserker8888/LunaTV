@@ -57,6 +57,8 @@ function AdminPageClient() {
 
   // 取得管理員設定
   // showLoading 用於控製是否在請求期間顯示整體載入骨架。
+  // 回傳是否成功：後台各區塊儲存後會呼叫它刷新，失敗時呼叫端要改報
+  // 「儲存可能成功但無法確認」，不能當作沒事顯示成功。
   const fetchConfig = useCallback(async (showLoading = false) => {
     try {
       setError(null);
@@ -74,11 +76,13 @@ function AdminPageClient() {
       setConfig(data.Config);
       setRole(data.Role);
       setError(null);
+      return true;
     } catch (err) {
       // 錯誤已由頁面上的紅字與「重新載入」按鈕呈現，
       // 不再另外彈出對話框（同一句話出現兩次且需多一次點擊才能關閉）
       const msg = err instanceof Error ? err.message : '取得設定失敗';
       setError(msg);
+      return false;
     } finally {
       setLoading(false);
     }

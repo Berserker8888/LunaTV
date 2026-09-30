@@ -25,6 +25,7 @@ import { AdminConfig } from '@/lib/admin.types';
 
 import { AlertModal, showError, useAlertModal } from './AlertModal';
 import { buttonStyles } from './buttonStyles';
+import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { CustomCategory } from './types';
 
@@ -33,7 +34,7 @@ export const CategoryConfig = ({
   refreshConfig,
 }: {
   config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }) => {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -65,13 +66,22 @@ export const CategoryConfig = ({
     })
   );
 
-  // config 變化時同步草稿並重置 orderChanged（render 期調整狀態）
+  // config 變化時同步草稿並重置 orderChanged（render 期調整狀態）。
+  // 只比對本區塊欄位（CustomCategories）的內容簽名，避免其他區塊儲存觸發的
+  // refreshConfig() 把本區塊未儲存的編輯靜默清掉。
   const [prevConfig, setPrevConfig] = useState(config);
+  const [prevSliceSig, setPrevSliceSig] = useState(() =>
+    configSliceSignature(config, (c) => c.CustomCategories)
+  );
   if (config !== prevConfig) {
     setPrevConfig(config);
-    if (config?.CustomCategories) {
-      setCategories(config.CustomCategories);
-      setOrderChanged(false);
+    const sliceSig = configSliceSignature(config, (c) => c.CustomCategories);
+    if (sliceSig !== prevSliceSig) {
+      setPrevSliceSig(sliceSig);
+      if (config?.CustomCategories) {
+        setCategories(config.CustomCategories);
+        setOrderChanged(false);
+      }
     }
   }
 
@@ -89,8 +99,12 @@ export const CategoryConfig = ({
         throw new Error(data.error || `操作失敗: ${resp.status}`);
       }
 
-      // 成功後重新整理設定
-      await refreshConfig();
+      // 成功後重新整理設定；刷新失敗要拋出來，不能當沒事
+      if (!(await refreshConfig())) {
+        throw new Error(
+          '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+        );
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : '操作失敗', showAlert);
       throw err; // 向上拋出方便調用處判斷

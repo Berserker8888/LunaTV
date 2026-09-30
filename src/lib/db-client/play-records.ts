@@ -7,6 +7,7 @@ import {
   handleDatabaseOperationFailure,
 } from './api';
 import { cacheManager } from './cache';
+import { rollbackOptimisticKey } from './optimistic-rollback';
 import {
   getPlayRecordKeysToDelete,
   isSameCachedData,
@@ -249,13 +250,22 @@ export async function savePlayRecord(
         );
       }
     } catch (err) {
-      // 若 POST 失敗且有先前快取，rollback 至原始狀態
+      // 若 POST 失敗且有先前快取：只有該 key 仍是樂觀寫入的值才還原，
+      // 避免蓋掉失敗期間寫入的較新紀錄
       if (prevRecords) {
-        cacheManager.cachePlayRecords(prevRecords);
-        window.dispatchEvent(
-          new CustomEvent('playRecordsUpdated', {
-            detail: prevRecords,
-          })
+        rollbackOptimisticKey(
+          cacheManager.getCachedPlayRecords(),
+          key,
+          mergedRecord,
+          prevRecords[key],
+          (rolledBack) => {
+            cacheManager.cachePlayRecords(rolledBack);
+            window.dispatchEvent(
+              new CustomEvent('playRecordsUpdated', {
+                detail: rolledBack,
+              })
+            );
+          }
         );
       }
       console.error('儲存播放紀錄失敗:', err);

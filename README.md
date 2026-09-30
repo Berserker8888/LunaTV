@@ -4,7 +4,7 @@
   <h1>LunaTV</h1>
   <p><strong>為繁體中文使用者優化的自架影音聚合平台</strong></p>
 
-![Version](https://img.shields.io/badge/Version-3.6.4-blue)
+![Version](https://img.shields.io/badge/Version-3.6.5-blue)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000?logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)
 ![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ed?logo=docker)
@@ -253,10 +253,10 @@ docker compose up -d
 | `REDIS_URL`                  | redis        | 例如 `redis://redis:6379`                                                                                                          |
 | `UPSTASH_URL`                | upstash      | Upstash HTTPS endpoint                                                                                                             |
 | `UPSTASH_TOKEN`              | upstash      | Upstash token                                                                                                                      |
-| `SESSION_SECRET`             | 正式部署必填 | 登入簽章密鑰；未設則回退 `PASSWORD`，之後每次改密碼會使所有已登入 session 失效 |
+| `SESSION_SECRET`             | 正式部署必填 | 登入簽章密鑰；未設則回退 `PASSWORD`，之後每次改密碼會使所有已登入 session 失效                                                     |
 | `CRON_SECRET`                | Vercel 必填  | 保護 `/api/cron`                                                                                                                   |
-| `E2E_TEST_MODE`              | 否           | 設為 `true` 時跳過登入限流，僅供 E2E 測試使用，正式環境勿設 |
-| `PROXY_ALLOW_CORS`           | 否           | 設為 `true` 才允許 m3u8 代理接受 `allowCORS=true` 參數（會暴露上游原始 URL），預設關閉 |
+| `E2E_TEST_MODE`              | 否           | 設為 `true` 時跳過登入限流，僅供 E2E 測試使用，正式環境勿設                                                                        |
+| `PROXY_ALLOW_CORS`           | 否           | 設為 `true` 才允許 m3u8 代理接受 `allowCORS=true` 參數（會暴露上游原始 URL），預設關閉                                             |
 | `NEXT_PUBLIC_SITE_NAME`      | 否           | 站名，預設 LunaTV                                                                                                                  |
 | `ANNOUNCEMENT`               | 否           | 公告                                                                                                                               |
 | `SITE_BASE`                  | HTTPS 反代   | 公開網址，例如 `https://tv.example.com`                                                                                            |

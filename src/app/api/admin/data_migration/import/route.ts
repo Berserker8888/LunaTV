@@ -516,9 +516,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('數據導入失敗:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '導入失敗' },
-      { status: 500 }
-    );
+    // 500 不回傳原始錯誤細節給客戶端
+    return NextResponse.json({ error: '導入失敗' }, { status: 500 });
   }
 }
