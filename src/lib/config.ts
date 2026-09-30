@@ -410,6 +410,11 @@ async function getInitConfig(
 
   // 從設定檔中補充源資訊
   Object.entries(cfgFile.api_site || []).forEach(([key, site]) => {
+    // key 不能含 '+'：儲存鍵格式是 `${source}+${id}`，含 '+' 會讓解析錯位
+    if (key.includes('+')) {
+      console.warn(`設定檔源 key「${key}」含有不合法字元 '+'，已略過`);
+      return;
+    }
     adminConfig.SourceConfig.push({
       key: key,
       name: toDisplayLanguage(site.name),

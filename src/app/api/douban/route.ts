@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { setBoundedMapValue } from '@/lib/bounded-map';
 import { getCacheTime } from '@/lib/config';
-import { fetchDoubanData, toSimplified } from '@/lib/douban';
+import { doubanCacheKey, fetchDoubanData, toSimplified } from '@/lib/douban';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 import { readResponseTextWithLimit } from '@/lib/url-safety';
 
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
   }
 
   // 檢查記憶體快取
-  const cacheKey = `douban:${type}:${tag}:${pageSize}:${pageStart}`;
+  const cacheKey = doubanCacheKey('douban', type, tag, pageSize, pageStart);
   const now = Date.now();
   const cached = DOUBAN_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > now) {
@@ -98,8 +98,8 @@ export async function GET(request: Request) {
     // 調用豆瓣 API
     const doubanData = await fetchDoubanData<DoubanApiResponse>(target);
 
-    // 轉換數據格式
-    const list: DoubanItem[] = doubanData.subjects.map((item) => ({
+    // 轉換數據格式（上游欄位缺失時回空陣列，不要拋錯）
+    const list: DoubanItem[] = (doubanData.subjects ?? []).map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.cover,
@@ -143,7 +143,7 @@ const TOP250_CACHE_TTL = 60 * 60 * 1000; // Top250 變化非常慢，快取 1 �
 async function handleTop250(pageStart: number, pageSize: number) {
   const now = Date.now();
   const limitedPageSize = Math.min(pageSize, 25);
-  const cacheKey = `${pageStart}:${limitedPageSize}`;
+  const cacheKey = doubanCacheKey('douban-top250', pageStart, limitedPageSize);
   const cached = TOP250_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > now) {
     const cacheTime = await getCacheTime();
