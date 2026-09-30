@@ -815,9 +815,13 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                           className={`font-bold truncate leading-tight text-[15px] sm:text-base ${
                             isCurrentSource ? 'text-accent' : 'text-white'
                           }`}
-                          title={source.source_name || source.source}
+                          title={toDisplayLanguage(
+                            source.source_name || source.source
+                          )}
                         >
-                          {source.source_name || source.source}
+                          {toDisplayLanguage(
+                            source.source_name || source.source
+                          )}
                         </h3>
                         <div className='flex items-center gap-1.5 shrink-0'>
                           {isCurrentSource && (

@@ -701,7 +701,9 @@ function PlayPageClient() {
         `${currentSourceRef.current}-${currentIdRef.current}`
       );
       autoSwitchCountRef.current += 1;
-      const label = nextSource.source_name || nextSource.title || '下一個來源';
+      const label = toDisplayLanguage(
+        nextSource.source_name || nextSource.title || '下一個來源'
+      );
       toast(`來源無法播放，已自動換到「${label}」`, 'info');
       handleSourceChangeRef.current(
         String(nextSource.source),

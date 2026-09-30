@@ -151,7 +151,9 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
     const actualSource =
       !source || source === 'undefined' || source === 'null' ? '' : source;
     const actualId = !id || id === 'undefined' || id === 'null' ? '' : id;
-    const displaySourceName = source_name?.replace(/^🎬\s*/, '') || '';
+    const displaySourceName = toDisplayLanguage(
+      source_name?.replace(/^🎬\s*/, '') || ''
+    );
     const actualDoubanId = dynamicDoubanId;
     const actualEpisodes = dynamicEpisodes;
     const actualYear = year;

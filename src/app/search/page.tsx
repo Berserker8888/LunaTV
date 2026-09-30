@@ -12,7 +12,11 @@ import React, {
   useState,
 } from 'react';
 
-import { cleanQueryForApi, toSearchSimplified } from '@/lib/chinese';
+import {
+  cleanQueryForApi,
+  toDisplayLanguage,
+  toSearchSimplified,
+} from '@/lib/chinese';
 import { addSearchHistory } from '@/lib/db.client';
 import { getResultEpisodeCount } from '@/lib/play-page-utils';
 import { buildPlayUrl } from '@/lib/play-url';
@@ -1341,7 +1345,10 @@ function SearchPageClient() {
                                       )}
                                       <span className='text-zinc-600'>•</span>
                                       <span className='text-zinc-400'>
-                                        來源：{item.source_name || item.source}
+                                        來源：
+                                        {toDisplayLanguage(
+                                          item.source_name || item.source
+                                        )}
                                       </span>
                                     </div>
                                   </div>

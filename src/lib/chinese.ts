@@ -819,24 +819,28 @@ const SORTED_SIMPLIFIED_TO_TRADITIONAL = Object.entries(
 ).sort((a, b) => b[0].length - a[0].length);
 
 /**
- * 名稱以 🎬 開頭的片源（如「🎬iKun资源」「🎬某某资源」）一律維持上游原文：
- * 不做繁簡轉換、不改台灣用語、不動符號與 emoji。
- * 其餘片源名稱仍走 toDisplayLanguage。
+ * 名稱以 🎬 開頭的片源（如「🎬非凡资源」）：只保留 🎬 前綴記號本身，
+ * 後面的名稱仍走繁簡轉換與台灣用語（避免換源清單簡繁混雜）。
  */
 export function shouldPreserveSourceDisplayName(name: string): boolean {
   return /^\s*🎬/.test(name);
 }
 
+/** 切出 🎬 前綴（含前後空白），只轉換後面的名稱本體 */
+function splitSourcePrefix(text: string): [string, string] {
+  const match = text.match(/^(\s*🎬\s*)/);
+  if (!match) return ['', text];
+  return [match[1], text.slice(match[1].length)];
+}
+
 export function toDisplayLanguage(text: string): string {
-  // 🎬 前綴片源：簡體就是簡體，符號也不能動
-  if (shouldPreserveSourceDisplayName(text)) {
-    return text;
-  }
-  let result = text;
+  // 🎬 前綴片源：前綴記號保留，後面的名稱仍轉繁體／台灣用語
+  const [prefix, body] = splitSourcePrefix(text);
+  let result = body;
   for (const [simp, trad] of SORTED_SIMPLIFIED_TO_TRADITIONAL) {
     result = result.split(simp).join(trad);
   }
-  return convertS2T(result);
+  return prefix + convertS2T(result);
 }
 
 export function cleanQueryForApi(rawQuery: string): string {
