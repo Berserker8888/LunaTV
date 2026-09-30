@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { setBoundedMapValue } from '@/lib/bounded-map';
 import { API_CONFIG, ApiSite } from '@/lib/config';
 import { withOutboundSlot } from '@/lib/outbound-gate';
 import { getCachedSearchPage, setCachedSearchPage } from '@/lib/search-cache';
@@ -365,7 +366,80 @@ export async function searchFromApi(
 
 const M3U8_PATTERN = /(https?:\/\/[^"'\s]+?\.m3u8)/g;
 
+/**
+ * 詳情 API 的伺服器端快取（L1 記憶體）。
+ *
+ * 播放頁進片、換源、背景刷新都會打詳情；多人同看一部片時重複打上游
+ * 又慢又浪費。簽名 URL 通常 2 小時以上才過期，15 分鐘快取是安全的：
+ * 即使某條 URL 剛好過期，播放失敗重試路徑會再打一次詳情拿到新的。
+ */
+interface DetailCacheEntry {
+  expiresAt: number;
+  data: SearchResult;
+}
+
+const DETAIL_CACHE_TTL_MS =
+  (Number(process.env.DETAIL_CACHE_TTL_MINUTES) || 15) * 60 * 1000;
+/** 詳情內含完整播放清單，單筆較大，L1 只留 300 筆。 */
+const MAX_DETAIL_CACHE_SIZE = 300;
+const DETAIL_CACHE = new Map<string, DetailCacheEntry>();
+
+function makeDetailCacheKey(sourceKey: string, id: string): string {
+  return `${sourceKey}::${id}`;
+}
+
+function getCachedDetailEntry(
+  sourceKey: string,
+  id: string
+): SearchResult | null {
+  const key = makeDetailCacheKey(sourceKey, id);
+  const entry = DETAIL_CACHE.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    DETAIL_CACHE.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCachedDetailEntry(
+  sourceKey: string,
+  id: string,
+  data: SearchResult
+): void {
+  const key = makeDetailCacheKey(sourceKey, id);
+  setBoundedMapValue(
+    DETAIL_CACHE,
+    key,
+    { expiresAt: Date.now() + DETAIL_CACHE_TTL_MS, data },
+    MAX_DETAIL_CACHE_SIZE
+  );
+}
+
+export function clearDetailCacheForTests(): void {
+  DETAIL_CACHE.clear();
+}
+
+/**
+ * 帶快取的詳情查詢：先看 L1，同 source+id 的併發請求共用一次上游請求。
+ * 只有成功結果會進快取，404／逾時等錯誤每次都重打上游。
+ */
 export async function getDetailFromApi(
+  apiSite: ApiSite,
+  id: string
+): Promise<SearchResult> {
+  const cached = getCachedDetailEntry(apiSite.key, id);
+  if (cached) return cached;
+  return deduplicateRequest(`detail::${apiSite.key}::${id}`, async () => {
+    const recheck = getCachedDetailEntry(apiSite.key, id);
+    if (recheck) return recheck;
+    const result = await fetchDetailFromApi(apiSite, id);
+    setCachedDetailEntry(apiSite.key, id, result);
+    return result;
+  });
+}
+
+async function fetchDetailFromApi(
   apiSite: ApiSite,
   id: string
 ): Promise<SearchResult> {

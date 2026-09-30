@@ -11,6 +11,7 @@ import { SimpleCrypto } from '@/lib/crypto';
 import { db } from '@/lib/db';
 import { isHashed } from '@/lib/password';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
+import { invalidateSearchCache } from '@/lib/search-cache';
 import { revokeUserSessions } from '@/lib/security-store';
 import { parseStorageKey } from '@/lib/storage-key';
 import { getServerStorageType } from '@/lib/storage-runtime';
@@ -420,6 +421,8 @@ export async function POST(req: NextRequest) {
       await db.withAdminConfigLock(async () => {
         await db.saveAdminConfig(importedAdminConfig);
         await setCachedConfig(importedAdminConfig);
+        // 整份配置被覆寫，搜尋快取一併失效
+        invalidateSearchCache();
       });
 
       // 導入使用者數據

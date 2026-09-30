@@ -40,7 +40,9 @@ export async function GET(request: Request) {
     const keyHeaders: Record<string, string> = {
       'Content-Type': 'application/octet-stream',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Cache-Control': 'public, max-age=3600',
+      // 金鑰端點需登入：private 避免共用快取以 URL 為鍵存下金鑰、
+      // 未登入者命中快取即繞過登入。金鑰很小，直接 no-store。
+      'Cache-Control': 'private, no-store',
     };
     if (process.env.PROXY_ALLOW_CORS === 'true') {
       keyHeaders['Access-Control-Allow-Origin'] = '*';

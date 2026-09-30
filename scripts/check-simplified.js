@@ -135,6 +135,8 @@ const EXCLUDED_FILES = [
   'chinese.test.ts',
   // 斷言 TMDB 別名抽取：輸入是 TMDB 回傳的簡體／陸譯標題，預期值亦然
   'tmdb-alias.test.ts',
+  // 版本關鍵詞需比對 CMS 簡體標題（导演剪辑版／剧场版等）
+  'skip-identity.ts',
 ];
 
 files.forEach((file) => {

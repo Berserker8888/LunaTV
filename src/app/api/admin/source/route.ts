@@ -12,6 +12,7 @@ import {
 import { getFreshConfig, setCachedConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
+import { invalidateSearchCache } from '@/lib/search-cache';
 import { getServerStorageType } from '@/lib/storage-runtime';
 
 export const runtime = 'nodejs';
@@ -326,6 +327,8 @@ export async function POST(request: NextRequest) {
         // 持久化到儲存
         await db.saveAdminConfig(adminConfig);
         setCachedConfig(adminConfig);
+        // 片源增刪／啟停／排序後，舊搜尋快取不再有效
+        invalidateSearchCache();
         return 'ok';
       }
     );

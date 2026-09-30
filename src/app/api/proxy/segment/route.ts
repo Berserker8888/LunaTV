@@ -94,7 +94,8 @@ export async function GET(request: Request) {
       'content-length',
       'content-range',
       'accept-ranges',
-      'cache-control',
+      // 不轉送上游 cache-control：上游若回 public，共用快取會以 URL 為鍵
+      // 存下分片，未登入者命中快取即繞過登入。一律覆寫為 private。
       'etag',
       'last-modified',
     ];
@@ -102,12 +103,17 @@ export async function GET(request: Request) {
       const value = limited.headers.get(name);
       if (value) headers.set(name, value);
     });
+    headers.set('Cache-Control', 'private, max-age=3600');
     // 不轉送上游 Content-Type。否則登入使用者能讓這條網址回傳 HTML，在本站來源執行。
     headers.set('Content-Type', 'application/octet-stream');
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('Content-Disposition', 'attachment');
     headers.set('Content-Security-Policy', "default-src 'none'; sandbox");
-    headers.set('Access-Control-Allow-Origin', '*');
+    // 預設不送 Access-Control-Allow-Origin（與 m3u8／key 代理一致）：
+    // 站內播放為同源請求不需要 CORS。僅管理員以環境變數明確允許才送。
+    if (process.env.PROXY_ALLOW_CORS === 'true') {
+      headers.set('Access-Control-Allow-Origin', '*');
+    }
     headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
     headers.set(
       'Access-Control-Allow-Headers',

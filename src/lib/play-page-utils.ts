@@ -694,3 +694,38 @@ export function calculateSourceScore(
 
   return Math.round(score * 100) / 100;
 }
+
+/**
+ * 集名正規化：把「第01集」「EP1」「S01E02」「1」都對到同一個 key。
+ * 換源時按集名對齊而不是純索引——不同源的集數排序可能不同
+ *（特別篇插在前面、多季合併、預告片佔位）。
+ * 取最後一組數字（S01E02 取 2）；抓不到數字時退回原始標題比對。
+ */
+export function normalizeEpisodeTitleKey(
+  title: string | undefined | null
+): string {
+  const t = (title ?? '').trim();
+  if (!t) return '';
+  // 全形數字轉半形
+  const half = t.replace(/[０-９]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+  );
+  const numbers = half.match(/\d+/g);
+  if (numbers && numbers.length > 0) {
+    return `n${parseInt(numbers[numbers.length - 1], 10)}`;
+  }
+  return `t${half.toLowerCase()}`;
+}
+
+/**
+ * 換源時在新源的集名清單中找與當前集名對應的索引。
+ * 找不到回 -1，呼叫端退回純索引對應。
+ */
+export function findEpisodeIndexByTitle(
+  newTitles: Array<string | undefined | null> | undefined,
+  currentTitle: string | undefined | null
+): number {
+  const key = normalizeEpisodeTitleKey(currentTitle);
+  if (!key || !newTitles || newTitles.length === 0) return -1;
+  return newTitles.findIndex((t) => normalizeEpisodeTitleKey(t) === key);
+}

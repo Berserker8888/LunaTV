@@ -13,7 +13,7 @@ export interface CachedPageEntry {
 }
 
 const SEARCH_CACHE_TTL_MS =
-  (Number(process.env.SEARCH_CACHE_TTL_MINUTES) || 120) * 60 * 1000;
+  (Number(process.env.SEARCH_CACHE_TTL_MINUTES) || 30) * 60 * 1000;
 const SEARCH_TIMEOUT_CACHE_TTL_MS = 2 * 60 * 1000;
 const SEARCH_FORBIDDEN_CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
@@ -51,8 +51,13 @@ function ttlFor(status: CachedPageStatus): number {
 }
 
 /**
- * 與上游／SzeMeng76 相同：搜尋快取保留完整播放清單。
- * 只補齊 episode_count，不再裁成單顆探針。
+ * 搜尋快取只保留中繼資料，清掉完整播放清單。
+ *
+ * CMS 的 vod_play_url 常帶時效簽名（?sign=...）；快取若留著舊網址，
+ * 換源時會直接拿過期 URL 起播（403），而背景刷新又刻意釘死播放中
+ * URL 不修正。清掉後，播放／換源一律走詳情 API 拿新網址
+ *（詳情 API 另有伺服器端快取，見 downstream.ts），只多一次快取命中。
+ * 集數顯示改看 episode_count（呼叫端本來就這樣處理）。
  */
 export function stripCachedEpisodes(results: SearchResult[]): SearchResult[] {
   return results.map((item) => {
@@ -63,13 +68,51 @@ export function stripCachedEpisodes(results: SearchResult[]): SearchResult[] {
         : urls.length;
     return {
       ...item,
+      episodes: [],
       episode_count,
     };
   });
 }
 
+/**
+ * 片源配置變更時遞增，讓 Kvrocks 裡的舊快取自然失效
+ *（舊 key 照原 TTL 過期，不再被讀到）。
+ */
+const SEARCH_CACHE_GENERATION_KV_KEY = 'lunatv:sc:generation';
+let searchCacheGeneration = 0;
+let generationHydrated = false;
+
 function redisKey(cacheKey: string): string {
-  return `lunatv:sc:v3:${cacheKey}`;
+  return `lunatv:sc:v4:g${searchCacheGeneration}:${cacheKey}`;
+}
+
+/** 啟動後第一次使用時從 Kvrocks 讀回 generation，讀不到就用 0。 */
+function ensureGenerationHydrated(): void {
+  if (generationHydrated) return;
+  generationHydrated = true;
+  void withRuntimeKvBudget(async (kv) => {
+    const values = await kv.mGet([SEARCH_CACHE_GENERATION_KV_KEY]);
+    const n = Number(values[0]);
+    if (Number.isInteger(n) && n > 0) searchCacheGeneration = n;
+    return true;
+  }, false).catch(() => undefined);
+}
+
+/**
+ * 片源配置變更後呼叫：L1 直接清空；L2 靠 generation 讓舊 key
+ * 自然失效，不需要掃描刪除。
+ */
+export function invalidateSearchCache(): void {
+  SEARCH_CACHE.clear();
+  SEARCH_NEGATIVE_CACHE.clear();
+  hydratedQueries.clear();
+  searchCacheGeneration += 1;
+  const next = searchCacheGeneration;
+  // generation 只會遞增，給 30 天 TTL 即可
+  void withRuntimeKvBudget(async (kv) => {
+    await kv.set(SEARCH_CACHE_GENERATION_KV_KEY, String(next), 30 * 24 * 3600);
+    return true;
+  }, false).catch(() => undefined);
 }
 
 export function getCachedSearchPage(
@@ -77,6 +120,7 @@ export function getCachedSearchPage(
   query: string,
   page: number
 ): CachedPageEntry | null {
+  ensureGenerationHydrated();
   const key = makeSearchCacheKey(sourceKey, query, page);
   const entry = SEARCH_CACHE.get(key) || SEARCH_NEGATIVE_CACHE.get(key);
   if (!entry) return null;
@@ -99,6 +143,7 @@ export function setCachedSearchPage(
   pageCount?: number
 ): void {
   ensureAutoCleanupStarted();
+  ensureGenerationHydrated();
 
   const now = Date.now();
   if (now - lastCleanupTime > CACHE_CLEANUP_INTERVAL_MS) {
@@ -135,6 +180,7 @@ export async function hydrateSearchCacheForQuery(
 ): Promise<void> {
   const normalized = query.trim();
   if (!normalized || sourceKeys.length === 0) return;
+  ensureGenerationHydrated();
   const now = Date.now();
   const last = hydratedQueries.get(normalized) || 0;
   if (now - last < LOCAL_HYDRATE_TTL_MS) return;
@@ -186,6 +232,8 @@ export function clearSearchCacheForTests(): void {
   SEARCH_CACHE.clear();
   SEARCH_NEGATIVE_CACHE.clear();
   hydratedQueries.clear();
+  searchCacheGeneration = 0;
+  generationHydrated = true;
   lastCleanupTime = 0;
 }
 

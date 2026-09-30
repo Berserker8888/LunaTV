@@ -33,6 +33,7 @@ import {
 } from '@/lib/hls-playback-config';
 import { logger } from '@/lib/logger';
 import {
+  findEpisodeIndexByTitle,
   formatPlayerTime,
   getResultEpisodeCount,
   getStableTitle,
@@ -1503,8 +1504,16 @@ function PlayPageClient() {
 
       setCachedDetail(newSource, newId, newDetail);
 
-      // 嘗試跳轉到當前正在播放的集數
+      // 嘗試跳轉到當前正在播放的集數：先按集名對齊（不同源的集數
+      // 排序可能不同：特別篇插在前面、多季合併），對不上才退回純索引
       let targetIndex = playingIndex;
+      const alignedIndex = findEpisodeIndexByTitle(
+        newDetail.episodes_titles,
+        detailRef.current?.episodes_titles?.[playingIndex]
+      );
+      if (alignedIndex >= 0) {
+        targetIndex = alignedIndex;
+      }
 
       // 如果當前集數超出新源的範圍，則跳轉到第一集
       if (!newDetail.episodes || targetIndex >= newDetail.episodes.length) {

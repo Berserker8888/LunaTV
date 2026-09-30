@@ -1,6 +1,7 @@
 import {
   clearSearchCacheForTests,
   getCachedSearchPage,
+  invalidateSearchCache,
   setCachedSearchPage,
   stripCachedEpisodes,
 } from './search-cache';
@@ -25,7 +26,7 @@ describe('search cache', () => {
     clearSearchCacheForTests();
   });
 
-  it('keeps the full episode list in positive cache', () => {
+  it('strips playable episode urls from positive cache but keeps titles and count', () => {
     setCachedSearchPage(
       'src',
       'query',
@@ -47,11 +48,8 @@ describe('search cache', () => {
     const cached = getCachedSearchPage('src', 'query', 1);
     expect(cached?.status).toBe('ok');
     expect(cached?.pageCount).toBe(3);
-    expect(cached?.data[0]?.episodes).toEqual([
-      'https://cdn.example.test/1.m3u8',
-      'https://cdn.example.test/2.m3u8',
-      'https://cdn.example.test/3.m3u8',
-    ]);
+    // 播放網址清掉：避免換源時拿過期簽名 URL 起播
+    expect(cached?.data[0]?.episodes).toEqual([]);
     expect(cached?.data[0]?.episodes_titles).toEqual(['1', '2', '3']);
     expect(cached?.data[0]?.episode_count).toBe(3);
     expect(cached?.data[0]?.title).toBe('測試');
@@ -64,7 +62,7 @@ describe('search cache', () => {
     expect(getCachedSearchPage('src', 'query', 1)?.status).toBe('ok');
   });
 
-  it('stripCachedEpisodes keeps the full list and fills episode_count', () => {
+  it('stripCachedEpisodes clears urls but fills episode_count', () => {
     expect(
       stripCachedEpisodes([
         result({
@@ -79,12 +77,16 @@ describe('search cache', () => {
     ).toMatchObject({
       id: '1',
       title: '測試',
-      episodes: [
-        'https://cdn.example.test/1.m3u8',
-        'https://cdn.example.test/2.m3u8',
-      ],
+      episodes: [],
       episodes_titles: ['1', '2'],
       episode_count: 24,
     });
+  });
+
+  it('invalidateSearchCache clears the L1 maps', () => {
+    setCachedSearchPage('src', 'query', 1, 'ok', [result()]);
+    expect(getCachedSearchPage('src', 'query', 1)?.status).toBe('ok');
+    invalidateSearchCache();
+    expect(getCachedSearchPage('src', 'query', 1)).toBeNull();
   });
 });

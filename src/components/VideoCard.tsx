@@ -19,6 +19,7 @@ import React, {
   useState,
 } from 'react';
 
+import { toDisplayLanguage } from '@/lib/chinese';
 import {
   deleteFavorite,
   deletePlayRecord,
@@ -144,6 +145,8 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
     }));
 
     const actualTitle = title;
+    // 顯示用標題走繁簡轉換（與播放頁一致）；跳轉／收藏／搜尋邏輯仍用原始標題
+    const displayTitle = toDisplayLanguage(title);
     const actualPoster = poster;
     const actualSource =
       !source || source === 'undefined' || source === 'null' ? '' : source;
@@ -654,7 +657,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
           onClick={handleClick}
           onKeyDown={handleKeyDown}
           role='article'
-          aria-label={actualTitle}
+          aria-label={displayTitle}
           tabIndex={0}
           {...longPressProps}
           style={
@@ -723,7 +726,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
             {!imgError ? (
               <Image
                 src={processImageUrl(actualPoster)}
-                alt={actualTitle}
+                alt={displayTitle}
                 fill
                 className={
                   origin === 'live' ? 'object-contain' : 'object-cover'
@@ -761,7 +764,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
             ) : (
               <div className='absolute inset-0 flex items-center justify-center bg-zinc-200 dark:bg-zinc-800'>
                 <span className='text-zinc-700 dark:text-zinc-300 text-xs font-medium text-center px-2 line-clamp-3'>
-                  {actualTitle}
+                  {displayTitle}
                 </span>
               </div>
             )}
@@ -976,7 +979,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
 
             {/* UI5 Glass Panel */}
             <CardGlassPanel
-              title={actualTitle}
+              title={displayTitle}
               episodes={actualEpisodes}
               currentEpisode={currentEpisode}
               showSourceName={config.showSourceName}
@@ -992,7 +995,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
         <MobileActionSheet
           isOpen={showMobileActions}
           onClose={() => setShowMobileActions(false)}
-          title={actualTitle}
+          title={displayTitle}
           poster={processImageUrl(actualPoster)}
           actions={mobileActions}
           sources={

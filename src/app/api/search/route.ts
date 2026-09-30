@@ -5,6 +5,7 @@ import { isValidApiSearchQuery } from '@/lib/api-input-validation';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { cleanQueryForApi } from '@/lib/chinese';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
+import { logger } from '@/lib/logger';
 import { getMainlandSearchQueries } from '@/lib/mainland-search';
 import { fanoutSearchSources } from '@/lib/search-fanout';
 import { orderSourcesByHealth } from '@/lib/source-health';
@@ -74,6 +75,12 @@ export async function GET(request: NextRequest) {
       query: cleanedOriginal,
       variants: searchVariants,
       parentSignal: request.signal,
+      onSiteResult: (entry) => {
+        if (entry.skipped) return;
+        if (entry.error) {
+          logger.warn(`搜尋失敗 ${entry.site.name}:`, entry.error);
+        }
+      },
     });
     let flattenedResults = siteResults.flatMap((entry) => entry.results);
     if (!config.SiteConfig.DisableYellowFilter) {

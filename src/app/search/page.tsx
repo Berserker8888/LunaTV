@@ -43,6 +43,9 @@ const DEFAULT_SEARCH_FILTER = {
   yearOrder: 'none' as const,
 };
 
+/** 別名重搜的「結果很少」門檻：結果數不超過此數且都與查詢無關時也觸發 */
+const ALIAS_RETRY_FEW_RESULT_COUNT = 3;
+
 type SearchFilterState = {
   source: string;
   title: string;
@@ -94,6 +97,8 @@ function SearchPageClient() {
   const flushTimerRef = useRef<number | null>(null);
   // 本輪搜尋累計收到的結果數（用於判斷是否需要豆瓣別名重搜）
   const receivedCountRef = useRef(0);
+  // 本輪收到的結果標題（別名重搜判斷用：結果很少時檢查是否都與查詢無關）
+  const receivedTitlesRef = useRef<string[]>([]);
   // 已嘗試過別名重搜的查詢，避免重搜結果為空時無限迴圈
   const aliasRetriedRef = useRef<string | null>(null);
   // 流式搜尋偏好：初始值由瀏覽器端讀取，之後每次搜尋重讀時可覆寫
@@ -168,11 +173,25 @@ function SearchPageClient() {
   }, [isLoading, searchResults.length, submittedQuery]);
 
   /**
+   * 別名重搜觸發條件：
+   * - 完全零結果；或
+   * - 結果很少（<=3）且沒有任何標題與查詢模糊匹配（可能全是無關結果，
+   *   例如台灣片名只命中幾部不相干的陸名片）
+   */
+  const shouldRetryWithTitleAlias = (query: string): boolean => {
+    if (receivedCountRef.current === 0) return true;
+    if (receivedCountRef.current > ALIAS_RETRY_FEW_RESULT_COUNT) return false;
+    return !receivedTitlesRef.current.some((title) =>
+      isFuzzyMatch(title, query)
+    );
+  };
+
+  /**
    * 台灣片名在大陸片源站常有完全不同的譯名（魔戒→指环王），
-   * 字元轉換與內建別名表都涵蓋不到。搜尋完全沒有結果時，
-   * 先用豆瓣反查大陸片名；豆瓣被限流或查無時，改打
-   * TMDB alternative_titles 備援。拿到別名就重搜一輪，
-   * 失敗則靜默維持原本的空結果。
+   * 字元轉換與內建別名表都涵蓋不到。搜尋完全沒有結果、
+   * 或結果很少且都與查詢無關時，先用豆瓣反查大陸片名；豆瓣被限流
+   * 或查無時，改打 TMDB alternative_titles 備援。拿到別名就重搜一輪，
+   * 失敗則靜默維持原本的結果。
    */
   const retryWithTitleAlias = async (originalQuery: string) => {
     if (aliasRetriedRef.current === originalQuery) return;
@@ -588,6 +607,7 @@ function SearchPageClient() {
       setTotalSources(0);
       setCompletedSources(0);
       receivedCountRef.current = 0;
+      receivedTitlesRef.current = [];
       pendingResultsRef.current = [];
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
@@ -652,6 +672,9 @@ function SearchPageClient() {
                       ? sortBatchForNoOrder(payload.results as SearchResult[])
                       : (payload.results as SearchResult[]);
                   receivedCountRef.current += incoming.length;
+                  receivedTitlesRef.current.push(
+                    ...incoming.map((item) => item.title)
+                  );
                   pendingResultsRef.current.push(...incoming);
                   if (!flushTimerRef.current) {
                     const timerId = window.setTimeout(() => {
@@ -699,7 +722,7 @@ function SearchPageClient() {
                 if (eventSourceRef.current === es) {
                   eventSourceRef.current = null;
                 }
-                if (receivedCountRef.current === 0) {
+                if (shouldRetryWithTitleAlias(trimmed)) {
                   void retryWithTitleAlias(trimmed);
                 }
                 break;
@@ -767,12 +790,15 @@ function SearchPageClient() {
                   : (data.results as SearchResult[]);
 
               receivedCountRef.current += results.length;
+              receivedTitlesRef.current.push(
+                ...results.map((item) => item.title)
+              );
               setSearchResults(results);
               setTotalSources(1);
               setCompletedSources(1);
             }
             setIsLoading(false);
-            if (receivedCountRef.current === 0) {
+            if (shouldRetryWithTitleAlias(trimmedQuery)) {
               void retryWithTitleAlias(trimmedQuery);
             }
           })

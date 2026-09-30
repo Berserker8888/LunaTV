@@ -4,6 +4,7 @@ import {
   EPISODE_DESCENDING_STORAGE_KEY,
   filterSourcesPreferHighQuality,
   filterTitleSafeCandidates,
+  findEpisodeIndexByTitle,
   formatPlayerTime,
   getDisplayedSourceEpisodeCount,
   getEpisodeSelectorCounts,
@@ -19,6 +20,7 @@ import {
   isMobileUserAgent,
   isPreferredDisplayQuality,
   needsEpisodeHydration,
+  normalizeEpisodeTitleKey,
   parseLoadSpeedKBps,
   pickFirstPlayableEpisodeUrl,
   pickNextPreferredSource,
@@ -833,5 +835,44 @@ describe('首播畫質底線（selectSourceAfterSpeedTests）', () => {
       { titleScore: 100, id: 'c' },
     ]);
     expect(safe.map((x) => x.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('normalizeEpisodeTitleKey', () => {
+  it('把各種集名寫法對到同一個 key', () => {
+    expect(normalizeEpisodeTitleKey('第1集')).toBe('n1');
+    expect(normalizeEpisodeTitleKey('第01集')).toBe('n1');
+    expect(normalizeEpisodeTitleKey('1')).toBe('n1');
+    expect(normalizeEpisodeTitleKey('EP01')).toBe('n1');
+    expect(normalizeEpisodeTitleKey('ＥＰ０２')).toBe('n2');
+    expect(normalizeEpisodeTitleKey('S01E02')).toBe('n2');
+    expect(normalizeEpisodeTitleKey('第10集')).toBe('n10');
+  });
+
+  it('抓不到數字時用原始標題', () => {
+    expect(normalizeEpisodeTitleKey('正片')).toBe(
+      normalizeEpisodeTitleKey('正片')
+    );
+    expect(normalizeEpisodeTitleKey('正片')).not.toBe(
+      normalizeEpisodeTitleKey('預告')
+    );
+    expect(normalizeEpisodeTitleKey('')).toBe('');
+    expect(normalizeEpisodeTitleKey(null)).toBe('');
+  });
+});
+
+describe('findEpisodeIndexByTitle', () => {
+  it('特別篇插在前面時仍對到正確集數', () => {
+    const newTitles = ['特別篇', '第1集', '第2集', '第3集'];
+    // 舊源第 2 集（索引 1，標題「第2集」）換到新源應為索引 2
+    expect(findEpisodeIndexByTitle(newTitles, '第2集')).toBe(2);
+    // 舊源標題是純數字也能對上
+    expect(findEpisodeIndexByTitle(newTitles, '3')).toBe(3);
+  });
+
+  it('對不上時回 -1，讓呼叫端退回索引', () => {
+    expect(findEpisodeIndexByTitle(['第1集'], '第99集')).toBe(-1);
+    expect(findEpisodeIndexByTitle([], '第1集')).toBe(-1);
+    expect(findEpisodeIndexByTitle(['第1集'], '')).toBe(-1);
   });
 });

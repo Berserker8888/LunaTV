@@ -1,6 +1,7 @@
 import { toSearchSimplified } from './chinese';
 import { type ApiSite, getConfig } from './config';
 import {
+  clearDetailCacheForTests,
   DownstreamNotFoundError,
   DownstreamTimeoutError,
   DownstreamUpstreamError,
@@ -484,6 +485,7 @@ describe('downstream detail episode parsing', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDetailCacheForTests();
     mockedFetchSafeRemoteUrl.mockResolvedValue({
       ok: true,
       status: 200,
@@ -550,21 +552,44 @@ describe('downstream detail episode parsing', () => {
 
   it('year 缺漏時填哨兵值 unknown，有值時取四位年份', async () => {
     mockDetail({ vod_name: 'A', vod_play_url: '1$https://a.test/1.m3u8' });
-    expect((await getDetailFromApi(site, '1')).year).toBe('unknown');
+    expect((await getDetailFromApi(site, 'y1')).year).toBe('unknown');
 
     mockDetail({
       vod_name: 'A',
       vod_year: '',
       vod_play_url: '1$https://a.test/1.m3u8',
     });
-    expect((await getDetailFromApi(site, '1')).year).toBe('unknown');
+    expect((await getDetailFromApi(site, 'y2')).year).toBe('unknown');
 
     mockDetail({
       vod_name: 'A',
       vod_year: '2024-05-01',
       vod_play_url: '1$https://a.test/1.m3u8',
     });
-    expect((await getDetailFromApi(site, '1')).year).toBe('2024');
+    expect((await getDetailFromApi(site, 'y3')).year).toBe('2024');
+  });
+
+  it('相同 source+id 第二次走快取，不再打上游；不同 id 照打', async () => {
+    mockDetail({
+      vod_name: '快取劇',
+      vod_play_url: '1$https://a.test/1.m3u8',
+    });
+    const first = await getDetailFromApi(site, 'cached-1');
+    expect(first.title).toBe('快取劇');
+    expect(mockedFetchSafeRemoteUrl).toHaveBeenCalledTimes(1);
+
+    // 換 mock 資料：若沒走快取，這裡會拿到新標題
+    mockDetail({
+      vod_name: '新標題',
+      vod_play_url: '1$https://a.test/1.m3u8',
+    });
+    const second = await getDetailFromApi(site, 'cached-1');
+    expect(second.title).toBe('快取劇');
+    expect(mockedFetchSafeRemoteUrl).toHaveBeenCalledTimes(1);
+
+    const third = await getDetailFromApi(site, 'cached-2');
+    expect(third.title).toBe('新標題');
+    expect(mockedFetchSafeRemoteUrl).toHaveBeenCalledTimes(2);
   });
 
   it('數字型 vod_year 不再讓整筆詳情失敗', async () => {
@@ -597,6 +622,7 @@ describe('downstream detail 邊界情況', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    clearDetailCacheForTests();
     mockedFetchSafeRemoteUrl.mockResolvedValue({
       ok: true,
       status: 200,
