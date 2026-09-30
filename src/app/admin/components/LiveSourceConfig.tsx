@@ -25,6 +25,7 @@ import { AdminConfig } from '@/lib/admin.types';
 
 import { AlertModal, showError, useAlertModal } from './AlertModal';
 import { buttonStyles } from './buttonStyles';
+import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { LiveDataSource } from './types';
 
@@ -33,7 +34,7 @@ export const LiveSourceConfig = ({
   refreshConfig,
 }: {
   config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }) => {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -70,13 +71,22 @@ export const LiveSourceConfig = ({
     })
   );
 
-  // config 變化時同步草稿並重置 orderChanged（render 期調整狀態）
+  // config 變化時同步草稿並重置 orderChanged（render 期調整狀態）。
+  // 只比對本區塊欄位（LiveConfig）的內容簽名，避免其他區塊儲存觸發的
+  // refreshConfig() 把本區塊未儲存的編輯靜默清掉。
   const [prevConfig, setPrevConfig] = useState(config);
+  const [prevSliceSig, setPrevSliceSig] = useState(() =>
+    configSliceSignature(config, (c) => c.LiveConfig)
+  );
   if (config !== prevConfig) {
     setPrevConfig(config);
-    if (config?.LiveConfig) {
-      setLiveSources(config.LiveConfig);
-      setOrderChanged(false);
+    const sliceSig = configSliceSignature(config, (c) => c.LiveConfig);
+    if (sliceSig !== prevSliceSig) {
+      setPrevSliceSig(sliceSig);
+      if (config?.LiveConfig) {
+        setLiveSources(config.LiveConfig);
+        setOrderChanged(false);
+      }
     }
   }
 
@@ -94,8 +104,12 @@ export const LiveSourceConfig = ({
         throw new Error(data.error || `操作失敗: ${resp.status}`);
       }
 
-      // 成功後重新整理設定
-      await refreshConfig();
+      // 成功後重新整理設定；刷新失敗要拋出來，不能當沒事
+      if (!(await refreshConfig())) {
+        throw new Error(
+          '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+        );
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : '操作失敗', showAlert);
       throw err; // 向上拋出方便調用處判斷
@@ -138,8 +152,12 @@ export const LiveSourceConfig = ({
           throw new Error(data.error || `重新整理失敗: ${response.status}`);
         }
 
-        // 重新整理成功後重新取得設定
-        await refreshConfig();
+        // 重新整理成功後重新取得設定；取不到就報出來，不能顯示成功
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '直播源已重新整理，但設定重新取得失敗，請手動重新整理頁面確認'
+          );
+        }
         showAlert({
           type: 'success',
           title: '重新整理成功',

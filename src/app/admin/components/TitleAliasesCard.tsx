@@ -27,7 +27,7 @@ export function TitleAliasesCard({
   refreshConfig,
 }: {
   aliases: TitleAlias[];
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }) {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -48,7 +48,12 @@ export function TitleAliasesCard({
         }
         setTw('');
         setCn('');
-        await refreshConfig();
+        // 刷新失敗要拋出來，不能先報成功
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '別名已儲存，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
         showSuccess('已儲存別名', showAlert);
       } catch (error) {
         showError(
@@ -68,7 +73,12 @@ export function TitleAliasesCard({
         if (!response.ok) {
           throw new Error(await readErrorMessage(response, '刪除失敗'));
         }
-        await refreshConfig();
+        // 刷新失敗要拋出來，不能先報成功
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '別名已刪除，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
         showSuccess('已刪除別名', showAlert);
       } catch (error) {
         showError(
@@ -129,7 +139,12 @@ export function TitleAliasesCard({
           count?: number;
         };
         setImportText('');
-        await refreshConfig();
+        // 刷新失敗要拋出來，不能先報成功
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '別名已匯入，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
         const skippedNote =
           (result.skipped || 0) + parsed.skipped > 0
             ? `（略過 ${(result.skipped || 0) + parsed.skipped} 筆無效或重複）`
@@ -181,9 +196,9 @@ export function TitleAliasesCard({
         <button
           type='button'
           onClick={() => void handleAdd()}
-          disabled={isLoading('addTitleAlias')}
+          disabled={isLoading('addTitleAlias') || !tw.trim() || !cn.trim()}
           className={`${
-            isLoading('addTitleAlias')
+            isLoading('addTitleAlias') || !tw.trim() || !cn.trim()
               ? buttonStyles.disabled
               : buttonStyles.success
           } shrink-0`}

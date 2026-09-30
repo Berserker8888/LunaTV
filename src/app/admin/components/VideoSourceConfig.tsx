@@ -34,6 +34,7 @@ import { describeSourceValidation } from '@/lib/source-validation-status';
 
 import { AlertModal, showError, useAlertModal } from './AlertModal';
 import { buttonStyles } from './buttonStyles';
+import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { DataSource } from './types';
 
@@ -42,7 +43,7 @@ export const VideoSourceConfig = ({
   refreshConfig,
 }: {
   config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }) => {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -145,19 +146,30 @@ export const VideoSourceConfig = ({
     })
   );
 
-  // config 變化時同步草稿並重置排序/選擇狀態（render 期調整狀態）
+  // config 變化時同步草稿並重置排序/選擇狀態（render 期調整狀態）。
+  // 只比對本區塊欄位（SourceConfig）的內容簽名，避免其他區塊儲存觸發的
+  // refreshConfig() 把本區塊未儲存的編輯／選取狀態靜默清掉。
   const [prevConfig, setPrevConfig] = useState(config);
+  const [prevSliceSig, setPrevSliceSig] = useState(() =>
+    configSliceSignature(config, (c) => c.SourceConfig)
+  );
   if (config !== prevConfig) {
     setPrevConfig(config);
-    if (config?.SourceConfig) {
-      setSources(config.SourceConfig);
-      setOrderChanged(false);
-      setSelectedSources(new Set());
+    const sliceSig = configSliceSignature(config, (c) => c.SourceConfig);
+    if (sliceSig !== prevSliceSig) {
+      setPrevSliceSig(sliceSig);
+      if (config?.SourceConfig) {
+        setSources(config.SourceConfig);
+        setOrderChanged(false);
+        setSelectedSources(new Set());
+      }
     }
   }
 
-  // 通用 API 請求
-  const callSourceApi = async (body: Record<string, any>) => {
+  // 通用 API 請求；成功時回傳回應內容（例如 batch_delete 的 skippedConfigKeys）
+  const callSourceApi = async (
+    body: Record<string, any>
+  ): Promise<{ skippedConfigKeys?: string[] }> => {
     try {
       const resp = await fetch('/api/admin/source', {
         method: 'POST',
@@ -170,8 +182,17 @@ export const VideoSourceConfig = ({
         throw new Error(data.error || `操作失敗: ${resp.status}`);
       }
 
-      // 成功後重新整理設定
-      await refreshConfig();
+      const data = (await resp.json().catch(() => ({}))) as {
+        skippedConfigKeys?: string[];
+      };
+
+      // 成功後重新整理設定；刷新失敗要拋出來，不能當沒事
+      if (!(await refreshConfig())) {
+        throw new Error(
+          '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+        );
+      }
+      return data;
     } catch (err) {
       showError(err instanceof Error ? err.message : '操作失敗', showAlert);
       throw err; // 向上拋出方便調用處判斷
@@ -765,13 +786,18 @@ export const VideoSourceConfig = ({
       message: confirmMessage,
       onConfirm: async () => {
         try {
-          await withLoading(`batchSource_${action}`, () =>
+          const result = await withLoading(`batchSource_${action}`, () =>
             callSourceApi({ action, keys })
           );
+          const skipped =
+            action === 'batch_delete' ? (result?.skippedConfigKeys ?? []) : [];
           showAlert({
             type: 'success',
             title: `${actionName}成功`,
-            message: `${actionName}了 ${keys.length} 個影片源`,
+            message:
+              skipped.length > 0
+                ? `${actionName}了 ${keys.length - skipped.length} 個影片源；${skipped.length} 個設定檔來源不可刪除，已略過`
+                : `${actionName}了 ${keys.length} 個影片源`,
             timer: 2000,
           });
           // 重置選擇狀態

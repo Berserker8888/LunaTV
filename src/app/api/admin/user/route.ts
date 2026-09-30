@@ -249,8 +249,20 @@ export async function POST(request: NextRequest) {
             };
 
             // 如果指定了使用者群組，新增到tags中
+            // 群組必須存在：不存在的群組會讓 tag 找不到對應設定，
+            // 反而掉到「全部可用源」的 fail-open，不能靜默接受
             if (userGroup && userGroup.trim()) {
-              newUser.tags = [userGroup];
+              const groupName = userGroup.trim();
+              const groupExists = (adminConfig.UserConfig.Tags || []).some(
+                (t) => t.name === groupName
+              );
+              if (!groupExists) {
+                return NextResponse.json(
+                  { error: `使用者群組「${groupName}」不存在` },
+                  { status: 400 }
+                );
+              }
+              newUser.tags = [groupName];
             }
 
             adminConfig.UserConfig.Users.push(newUser);
