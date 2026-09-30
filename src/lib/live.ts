@@ -368,7 +368,8 @@ export function parseM3U(
     }
   }
 
-  return { tvgUrl, channels };
+  // tvg-url 可能是相對於播放清單的相對路徑，一併解析成絕對 URL
+  return { tvgUrl: resolvePlaylistEntryUrl(playlistUrl, tvgUrl), channels };
 }
 
 function extractExtinfTitle(line: string): string {

@@ -81,6 +81,9 @@ function SearchPageClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  // 搜尋請求本身失敗（API 掛掉／連線中斷）時為 true，
+  // 避免把「搜尋失敗」顯示成「找不到結果」誤導使用者
+  const [searchError, setSearchError] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -561,6 +564,7 @@ function SearchPageClient() {
       groupStatsRef.current.clear();
       setSearchResults([]);
       setResolvedSearchQuery('');
+      setSearchError(false);
       setFilterAll(DEFAULT_SEARCH_FILTER);
       setFilterAgg(DEFAULT_SEARCH_FILTER);
       setTotalSources(0);
@@ -694,6 +698,10 @@ function SearchPageClient() {
             return;
           closed = true;
           setIsLoading(false);
+          // 連線層就失敗且一個結果都沒收到：這是搜尋失敗，不是「沒片源」
+          if (receivedCountRef.current === 0) {
+            setSearchError(true);
+          }
           if (pendingResultsRef.current.length > 0) {
             const toAppend = pendingResultsRef.current;
             pendingResultsRef.current = [];
@@ -720,7 +728,12 @@ function SearchPageClient() {
         fetch(`/api/search?q=${encodeURIComponent(cleanedQuery)}`, {
           signal: controller.signal,
         })
-          .then((response) => response.json())
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`search failed: ${response.status}`);
+            }
+            return response.json();
+          })
           .then((data) => {
             if (currentQueryRef.current !== trimmedQuery) return;
 
@@ -752,6 +765,7 @@ function SearchPageClient() {
               currentQueryRef.current === trimmedQuery
             ) {
               setIsLoading(false);
+              setSearchError(true);
             }
           })
           .finally(() => {
@@ -1030,6 +1044,18 @@ function SearchPageClient() {
                 isLoading ? (
                   <div className='flex justify-center items-center h-40'>
                     <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-accent'></div>
+                  </div>
+                ) : searchError ? (
+                  <div className='flex flex-col items-center justify-center gap-3 px-6 py-16 text-center'>
+                    <div className='flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/60'>
+                      <Search className='h-6 w-6 text-zinc-400' />
+                    </div>
+                    <p className='text-base font-medium text-zinc-100'>
+                      搜尋失敗，請稍後再試
+                    </p>
+                    <p className='max-w-sm text-sm leading-relaxed text-zinc-500'>
+                      搜尋服務暫時無法連線，不是沒有片源。等一下再搜一次看看。
+                    </p>
                   </div>
                 ) : (
                   <div className='flex flex-col items-center justify-center gap-3 px-6 py-16 text-center'>

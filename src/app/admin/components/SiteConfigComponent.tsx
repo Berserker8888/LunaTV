@@ -10,6 +10,7 @@ import {
   useAlertModal,
 } from './AlertModal';
 import { buttonStyles } from './buttonStyles';
+import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { TitleAliasesCard } from './TitleAliasesCard';
 import { SiteConfig } from './types';
@@ -35,7 +36,7 @@ export const SiteConfigComponent = ({
   refreshConfig,
 }: {
   config: AdminConfig | null;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }) => {
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
@@ -105,12 +106,21 @@ export const SiteConfigComponent = ({
     }
   };
 
-  // config 變化時同步草稿（render 期調整狀態）
+  // config 變化時同步草稿（render 期調整狀態）。
+  // 只比對本區塊欄位（SiteConfig）的內容簽名，避免其他區塊儲存觸發的
+  // refreshConfig() 把本區塊未儲存的編輯靜默清掉。
   const [prevConfig, setPrevConfig] = useState(config);
+  const [prevSliceSig, setPrevSliceSig] = useState(() =>
+    configSliceSignature(config, (c) => c.SiteConfig)
+  );
   if (config !== prevConfig) {
     setPrevConfig(config);
-    if (config?.SiteConfig) {
-      setSiteSettings(mapSiteConfig(config.SiteConfig));
+    const sliceSig = configSliceSignature(config, (c) => c.SiteConfig);
+    if (sliceSig !== prevSliceSig) {
+      setPrevSliceSig(sliceSig);
+      if (config?.SiteConfig) {
+        setSiteSettings(mapSiteConfig(config.SiteConfig));
+      }
     }
   }
 
@@ -180,8 +190,14 @@ export const SiteConfigComponent = ({
           throw new Error(data.error || `儲存失敗: ${resp.status}`);
         }
 
-        showSuccess('儲存成功, 請重新整理頁面', showAlert);
-        await refreshConfig();
+        if (await refreshConfig()) {
+          showSuccess('儲存成功, 請重新整理頁面', showAlert);
+        } else {
+          showError(
+            '設定已送出儲存，但重新整理設定失敗，請手動重新整理頁面確認',
+            showAlert
+          );
+        }
       } catch (err) {
         showError(err instanceof Error ? err.message : '儲存失敗', showAlert);
         throw err;
