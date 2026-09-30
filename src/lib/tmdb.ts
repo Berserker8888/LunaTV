@@ -42,7 +42,11 @@ export function __clearTmdbCache(): void {
   responseCache.clear();
 }
 
-export type TmdbJsonFetcher = (url: string, apiKey: string) => Promise<unknown>;
+export type TmdbJsonFetcher = (
+  url: string,
+  apiKey: string,
+  signal?: AbortSignal
+) => Promise<unknown>;
 
 export interface TmdbLookupDeps {
   apiKey?: string;
@@ -61,7 +65,33 @@ function cacheKey(query: TmdbQuery): string {
   ].join('|');
 }
 
-async function defaultFetchJson(url: string, apiKey: string): Promise<unknown> {
+const TMDB_OVERALL_DEADLINE_MS = 20_000;
+
+/**
+ * 整體 deadline：單次 lookup 會依序打多次 TMDB（zh-TW／zh-CN／詳情／季資訊），
+ * 每次各有 REQUEST_TIMEOUT_MS，串起來可能拖很久。整體超過 20 秒就放棄，
+ * 並透過共用 AbortSignal 真正中止仍在背景執行的底層請求。
+ */
+async function withOverallDeadline<T>(
+  ms: number,
+  run: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new Error('TMDB 整體查詢超時（20 秒）'));
+  }, ms);
+  try {
+    return await run(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function defaultFetchJson(
+  url: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<unknown> {
   const parsed = new URL(url);
   const headers: Record<string, string> = { Accept: 'application/json' };
   // v4 權杖是 JWT；v3 金鑰放在查詢參數。錯誤訊息只留狀態碼，避免把金鑰寫進日誌。
@@ -73,6 +103,13 @@ async function defaultFetchJson(url: string, apiKey: string): Promise<unknown> {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // 整體 deadline 觸發時，一併中止這次請求
+  const onOuterAbort = () => controller.abort(signal?.reason);
+  if (signal?.aborted) {
+    controller.abort(signal.reason);
+  } else {
+    signal?.addEventListener('abort', onOuterAbort, { once: true });
+  }
   try {
     const response = await fetchSafeRemoteUrl(parsed.toString(), {
       headers,
@@ -85,6 +122,7 @@ async function defaultFetchJson(url: string, apiKey: string): Promise<unknown> {
     return await readResponseJsonWithLimit(response, MAX_RESPONSE_BYTES);
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', onOuterAbort);
   }
 }
 
@@ -122,12 +160,13 @@ async function searchCandidates(
   queries: string[],
   language: 'zh-TW' | 'zh-CN',
   apiKey: string,
-  fetchJson: TmdbJsonFetcher
+  fetchJson: TmdbJsonFetcher,
+  signal?: AbortSignal
 ) {
   const found = [];
   for (const query of queries) {
     const url = `${TMDB_ORIGIN}/search/multi?language=${language}&include_adult=false&query=${encodeURIComponent(query)}`;
-    found.push(...mapTmdbSearchResults(await fetchJson(url, apiKey)));
+    found.push(...mapTmdbSearchResults(await fetchJson(url, apiKey, signal)));
   }
   return found;
 }
@@ -136,18 +175,21 @@ async function loadSeasonOverview(
   id: number,
   season: number,
   apiKey: string,
-  fetchJson: TmdbJsonFetcher
+  fetchJson: TmdbJsonFetcher,
+  signal?: AbortSignal
 ): Promise<string> {
   try {
     const traditional = (await fetchJson(
       `${TMDB_ORIGIN}/tv/${id}/season/${season}?language=zh-TW`,
-      apiKey
+      apiKey,
+      signal
     )) as { overview?: unknown };
     const primary = String(traditional?.overview || '');
     if (hasHanText(primary)) return primary;
     const simplified = (await fetchJson(
       `${TMDB_ORIGIN}/tv/${id}/season/${season}?language=zh-CN`,
-      apiKey
+      apiKey,
+      signal
     )) as { overview?: unknown };
     return chooseTraditionalText(primary, String(simplified?.overview || ''));
   } catch {
@@ -158,18 +200,19 @@ async function loadSeasonOverview(
 async function loadTmdbMatch(
   query: TmdbQuery,
   apiKey: string,
-  fetchJson: TmdbJsonFetcher
+  fetchJson: TmdbJsonFetcher,
+  signal?: AbortSignal
 ): Promise<TmdbMatch | null> {
   const queries = collectTmdbSearchQueries(query.title);
   if (queries.length === 0) return null;
 
   let picked = pickTmdbCandidate(
-    await searchCandidates(queries, 'zh-TW', apiKey, fetchJson),
+    await searchCandidates(queries, 'zh-TW', apiKey, fetchJson, signal),
     query
   );
   if (!picked) {
     picked = pickTmdbCandidate(
-      await searchCandidates(queries, 'zh-CN', apiKey, fetchJson),
+      await searchCandidates(queries, 'zh-CN', apiKey, fetchJson, signal),
       query
     );
   }
@@ -177,7 +220,7 @@ async function loadTmdbMatch(
 
   const detailUrl = (language: string) =>
     `${TMDB_ORIGIN}/${picked.mediaType}/${picked.id}?language=${language}&append_to_response=credits,translations`;
-  let detail = (await fetchJson(detailUrl('zh-TW'), apiKey)) as Record<
+  let detail = (await fetchJson(detailUrl('zh-TW'), apiKey, signal)) as Record<
     string,
     unknown
   >;
@@ -191,17 +234,18 @@ async function loadTmdbMatch(
     !hasHanText(String(detail?.[titleKey] || '')) ||
     !hasHanText(String(detail?.overview || ''));
   if (needsFallback && detail && typeof detail === 'object') {
-    const fallback = (await fetchJson(detailUrl('zh-CN'), apiKey)) as Record<
-      string,
-      unknown
-    >;
+    const fallback = (await fetchJson(
+      detailUrl('zh-CN'),
+      apiKey,
+      signal
+    )) as Record<string, unknown>;
     detail = overlayTraditionalFields(detail, fallback, picked.mediaType);
   }
 
   const season =
     picked.mediaType === 'tv' ? extractSeasonNumber(query.title) : null;
   const seasonText = season
-    ? await loadSeasonOverview(picked.id, season, apiKey, fetchJson)
+    ? await loadSeasonOverview(picked.id, season, apiKey, fetchJson, signal)
     : '';
   const seriesOverview = String(detail?.overview || '');
   // 季簡介只有在它自己是中文，或整部作品也沒有中文簡介時才蓋過作品簡介。
@@ -229,10 +273,15 @@ export async function lookupTmdb(
   if (cached && cached.expiresAt > now) return cached.match;
 
   try {
-    const match = await loadTmdbMatch(
-      normalized,
-      apiKey,
-      deps.fetchJson ?? defaultFetchJson
+    const match = await withOverallDeadline(
+      TMDB_OVERALL_DEADLINE_MS,
+      (signal) =>
+        loadTmdbMatch(
+          normalized,
+          apiKey,
+          deps.fetchJson ?? defaultFetchJson,
+          signal
+        )
     );
     setBoundedMapValue(
       responseCache,

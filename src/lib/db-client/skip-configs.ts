@@ -7,6 +7,7 @@ import {
   handleDatabaseOperationFailure,
 } from './api';
 import { cacheManager } from './cache';
+import { rollbackOptimisticKey } from './optimistic-rollback';
 import { isSameCachedData, STORAGE_TYPE, triggerGlobalError } from './shared';
 import { SkipConfig } from '../types';
 // ------------- 跳過片头片尾設定相關 API -------------
@@ -120,12 +121,20 @@ export async function saveSkipConfig(
         body: JSON.stringify({ key, config }),
       });
     } catch (err) {
-      // 發生錯誤，回滾快取與 UI 狀態，並向上拋出錯誤
-      cacheManager.cacheSkipConfigs(prevConfigs);
-      window.dispatchEvent(
-        new CustomEvent('skipConfigsUpdated', {
-          detail: prevConfigs,
-        })
+      // 發生錯誤只還原「沒被後續寫入動過」的 key，並向上拋出錯誤
+      rollbackOptimisticKey(
+        cacheManager.getCachedSkipConfigs(),
+        key,
+        nextConfigs[key],
+        prevConfigs[key],
+        (rolledBack) => {
+          cacheManager.cacheSkipConfigs(rolledBack);
+          window.dispatchEvent(
+            new CustomEvent('skipConfigsUpdated', {
+              detail: rolledBack,
+            })
+          );
+        }
       );
       await handleDatabaseOperationFailure('skipConfigs', err);
       triggerGlobalError('儲存跳過片頭片尾設定失敗');

@@ -283,10 +283,32 @@ export const REGIONAL_TITLE_ALIASES: RegionalTitleAlias[] = [
 /**
  * 自訂 tw 覆蓋同名內建條目，再依 tw 長度由長到短排。
  * 長詞優先才能讓「機動戰士鋼彈」先於「鋼彈」命中。
+ *
+ * 按 custom 陣列「引用」快取結果：搜尋流程會對每個候選標題呼叫數百上千次，
+ * 但 custom 引用在設定不變時是穩定的，不必每次重建＋重排。
  */
+const mergedAliasesCache = new WeakMap<
+  RegionalTitleAlias[],
+  RegionalTitleAlias[]
+>();
+
 export function mergeAndSortAliases(
   custom: RegionalTitleAlias[] = [],
   builtin: RegionalTitleAlias[] = REGIONAL_TITLE_ALIASES
+): RegionalTitleAlias[] {
+  if (builtin === REGIONAL_TITLE_ALIASES) {
+    const cached = mergedAliasesCache.get(custom);
+    if (cached) return cached;
+    const merged = buildMergedAliases(custom, builtin);
+    mergedAliasesCache.set(custom, merged);
+    return merged;
+  }
+  return buildMergedAliases(custom, builtin);
+}
+
+function buildMergedAliases(
+  custom: RegionalTitleAlias[],
+  builtin: RegionalTitleAlias[]
 ): RegionalTitleAlias[] {
   const byTw = new Map<string, RegionalTitleAlias>();
   for (const alias of builtin) {

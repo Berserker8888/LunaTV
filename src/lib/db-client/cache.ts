@@ -115,14 +115,15 @@ class HybridCacheManager {
     } catch (error) {
       console.warn('儲存使用者快取失敗:', error);
       this.memo = null;
-      // 存儲空間不足時清理快取后重試
+      // 存儲空間不足時只清除「目前使用者」的快取後重試，
+      // 不要動到其他使用者的快取
       if (
         error instanceof DOMException &&
         error.name === 'QuotaExceededError'
       ) {
-        this.clearAllCache();
         try {
           const cacheKey = this.getUserCacheKey(username);
+          localStorage.removeItem(cacheKey);
           const retrySerialized = JSON.stringify(cache);
           localStorage.setItem(cacheKey, retrySerialized);
           this.memo = { cacheKey, raw: retrySerialized, store: cache };
@@ -149,19 +150,6 @@ class HybridCacheManager {
     if (cache.favorites && now - cache.favorites.timestamp > maxAge) {
       delete cache.favorites;
     }
-  }
-
-  /**
-   * 清理所有快取
-   */
-  private clearAllCache(): void {
-    const keys = Object.keys(localStorage);
-    keys.forEach((key) => {
-      if (key.startsWith('moontv_cache_')) {
-        localStorage.removeItem(key);
-      }
-    });
-    this.memo = null;
   }
 
   /**

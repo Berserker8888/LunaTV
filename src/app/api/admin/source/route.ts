@@ -86,6 +86,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '參數格式錯誤' }, { status: 400 });
     }
 
+    // batch_delete 被跳過的 config 來源（from=config 不可刪），要回傳給前端
+    let skippedConfigKeys: string[] = [];
+
     const outcome = await db.withAdminConfigLock(
       async (): Promise<NextResponse | 'ok'> => {
         // 鎖內重讀設定
@@ -243,10 +246,14 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
               );
             }
-            // 過濾掉 from=config 的源，但不報錯
+            // 過濾掉 from=config 的源，但不報錯；被跳過的要回傳給前端
             const keysToDelete = keys.filter((key) => {
               const entry = adminConfig.SourceConfig.find((s) => s.key === key);
               return entry && entry.from !== 'config';
+            });
+            skippedConfigKeys = keys.filter((key) => {
+              const entry = adminConfig.SourceConfig.find((s) => s.key === key);
+              return !!entry && entry.from === 'config';
             });
 
             // 批量刪除
@@ -326,7 +333,11 @@ export async function POST(request: NextRequest) {
     if (outcome !== 'ok') return outcome;
 
     return NextResponse.json(
-      { ok: true },
+      {
+        ok: true,
+        // batch_delete 時被跳過的 config 來源（不可刪），前端可提示使用者
+        ...(skippedConfigKeys.length > 0 ? { skippedConfigKeys } : {}),
+      },
       {
         headers: {
           'Cache-Control': 'no-store',

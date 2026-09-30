@@ -1,8 +1,6 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface CustomCategory {
   name: string;
@@ -156,18 +154,22 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
   };
 
   // 組件掛載時立即計算初始位置
-  useEffect(() => {
+  // 抽成 callback：掛載／選項變化／視窗 resize 都要重算膠囊指示器位置
+  const refreshIndicatorPositions = useCallback(() => {
+    const cleanups: Array<() => void> = [];
+
     // 主選擇器初始位置
     if (primaryOptions.length > 0) {
       const activeIndex = primaryOptions.findIndex(
         (opt) => opt.value === (primarySelection || primaryOptions[0].value)
       );
-      updateIndicatorPosition(
+      const cleanup = updateIndicatorPosition(
         activeIndex,
         primaryContainerRef,
         primaryButtonRefs,
         setPrimaryIndicatorStyle
       );
+      if (cleanup) cleanups.push(cleanup);
     }
 
     // 副選擇器初始位置
@@ -175,14 +177,38 @@ const DoubanCustomSelector: React.FC<DoubanCustomSelectorProps> = ({
       const activeIndex = secondaryOptions.findIndex(
         (opt) => opt.value === (secondarySelection || secondaryOptions[0].value)
       );
-      updateIndicatorPosition(
+      const cleanup = updateIndicatorPosition(
         activeIndex,
         secondaryContainerRef,
         secondaryButtonRefs,
         setSecondaryIndicatorStyle
       );
+      if (cleanup) cleanups.push(cleanup);
     }
-  }, [primaryOptions, secondaryOptions]); // 當選項變化時重新計算
+
+    // 清掉排程中的 timeout，避免卸載後還 setState
+    return () => {
+      cleanups.forEach((fn) => fn());
+    };
+  }, [primaryOptions, secondaryOptions, primarySelection, secondarySelection]);
+
+  useEffect(() => {
+    return refreshIndicatorPositions();
+  }, [refreshIndicatorPositions]);
+
+  // 視窗大小變化時重算膠囊指示器位置（按鈕寬度／位置會變）
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    const handleResize = () => {
+      cleanup?.();
+      cleanup = refreshIndicatorPositions();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cleanup?.();
+    };
+  }, [refreshIndicatorPositions]);
 
   // 監聽主選擇器變化
   useEffect(() => {

@@ -122,7 +122,7 @@ export function NetflixBangumiRow({
                         <path d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z' />
                         <circle cx='12' cy='12' r='3' />
                       </svg>
-                      {anime.rating.score.toFixed(1)}萬
+                      {anime.rating.score.toFixed(1)}
                     </div>
                   )}
                 </div>

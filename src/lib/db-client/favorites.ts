@@ -7,6 +7,7 @@ import {
   handleDatabaseOperationFailure,
 } from './api';
 import { cacheManager } from './cache';
+import { rollbackOptimisticKey } from './optimistic-rollback';
 import {
   Favorite,
   FAVORITES_KEY,
@@ -135,11 +136,20 @@ export async function saveFavorite(
         );
       }
     } catch (err) {
-      cacheManager.cacheFavorites(prevFavorites);
-      window.dispatchEvent(
-        new CustomEvent('favoritesUpdated', {
-          detail: prevFavorites,
-        })
+      // 只還原「沒被後續寫入動過」的 key，避免蓋掉較新的收藏
+      rollbackOptimisticKey(
+        cacheManager.getCachedFavorites(),
+        key,
+        nextFavorites[key],
+        prevFavorites[key],
+        (rolledBack) => {
+          cacheManager.cacheFavorites(rolledBack);
+          window.dispatchEvent(
+            new CustomEvent('favoritesUpdated', {
+              detail: rolledBack,
+            })
+          );
+        }
       );
       await handleDatabaseOperationFailure('favorites', err);
       triggerGlobalError('儲存收藏失敗');

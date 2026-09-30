@@ -52,6 +52,7 @@ const MAX_VALIDATION_CACHE = 500;
 const MAX_SEARCH_JSON_BYTES = 2 * 1024 * 1024;
 const MAX_M3U8_PROBE_BYTES = 8 * 1024;
 const DEFAULT_PLAYABLE_TIMEOUT_MS = 6_000;
+const DEFAULT_SEARCH_TIMEOUT_MS = 15_000;
 
 const lastValidationBySource = new Map<string, SourceValidationResult>();
 
@@ -189,11 +190,22 @@ export async function validateSourceSite(
   }
 
   let list: Array<Record<string, unknown>> = [];
+  // 搜尋請求專屬超時：之前 searchTimeoutMs 宣告了卻沒接線，
+  // 驗證請求可能無限掛住。比照 playableTimeoutMs 用 AbortController 計時。
+  const searchTimeoutMs = options.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS;
+  const searchController = new AbortController();
+  const onSearchAbort = () => searchController.abort();
+  if (options.signal?.aborted) onSearchAbort();
+  options.signal?.addEventListener('abort', onSearchAbort, { once: true });
+  const searchTimer = setTimeout(
+    () => searchController.abort(),
+    searchTimeoutMs
+  );
   try {
     const searchUrl = `${site.api}${API_CONFIG.search.path}${encodeURIComponent(keyword)}`;
     const response = await fetchSafeRemoteUrl(searchUrl, {
       headers: API_CONFIG.search.headers,
-      signal: options.signal,
+      signal: searchController.signal,
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -217,6 +229,9 @@ export async function validateSourceSite(
       episodeCount: 0,
       latencyMs: Date.now() - startedAt,
     });
+  } finally {
+    clearTimeout(searchTimer);
+    options.signal?.removeEventListener('abort', onSearchAbort);
   }
 
   if (list.length === 0) {
