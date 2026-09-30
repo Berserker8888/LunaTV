@@ -24,7 +24,7 @@ import {
 export interface UserConfigProps {
   config: AdminConfig | null;
   role: 'owner' | 'admin' | null;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: () => Promise<boolean>;
 }
 
 export const UserConfig = ({
@@ -128,7 +128,12 @@ export const UserConfig = ({
           throw new Error(data.error || `操作失敗: ${res.status}`);
         }
 
-        await refreshConfig();
+        // 重新整理設定；刷新失敗要拋出來，不能當沒事
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
 
         if (action === 'add') {
           setNewUserGroup({ name: '', enabledApis: [] });
@@ -227,7 +232,12 @@ export const UserConfig = ({
           throw new Error(data.error || `操作失敗: ${res.status}`);
         }
 
-        await refreshConfig();
+        // 重新整理設定；刷新失敗要拋出來，不能先報成功
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
         showSuccess('使用者群組分配成功', showAlert);
       } catch (err) {
         showError(err instanceof Error ? err.message : '操作失敗', showAlert);
@@ -399,13 +409,18 @@ export const UserConfig = ({
         setSelectedUsers(new Set());
         setShowBatchUserGroupModal(false);
         setSelectedUserGroup('');
-        showSuccess(
-          `已為 ${userCount} 個使用者設定使用者群組: ${userGroup}`,
-          showAlert
-        );
-
-        // 重新整理設定
-        await refreshConfig();
+        // 重新整理設定；刷新失敗不能報成功（此處 catch 訊息固定，明確處理）
+        if (await refreshConfig()) {
+          showSuccess(
+            `已為 ${userCount} 個使用者設定使用者群組: ${userGroup}`,
+            showAlert
+          );
+        } else {
+          showError(
+            '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認',
+            showAlert
+          );
+        }
       } catch (err) {
         showError('批量設定使用者群組失敗', showAlert);
         throw err;
@@ -433,8 +448,12 @@ export const UserConfig = ({
           throw new Error(data.error || `操作失敗: ${res.status}`);
         }
 
-        // 成功後重新整理設定
-        await refreshConfig();
+        // 成功後重新整理設定；刷新失敗要拋出來，不能當沒事
+        if (!(await refreshConfig())) {
+          throw new Error(
+            '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+          );
+        }
         setShowConfigureApisModal(false);
         setSelectedUser(null);
         setSelectedApis([]);
@@ -476,8 +495,12 @@ export const UserConfig = ({
         throw new Error(data.error || `操作失敗: ${res.status}`);
       }
 
-      // 成功後重新整理設定（無需整頁重新整理）
-      await refreshConfig();
+      // 成功後重新整理設定（無需整頁重新整理）；刷新失敗要拋出來
+      if (!(await refreshConfig())) {
+        throw new Error(
+          '操作已送出，但重新整理設定失敗，請手動重新整理頁面確認'
+        );
+      }
       return true;
     } catch (err) {
       showError(err instanceof Error ? err.message : '操作失敗', showAlert);
@@ -1131,7 +1154,7 @@ export const UserConfig = ({
             setNewUserGroup({ name: '', enabledApis: [] });
           }}
           onSubmit={handleAddUserGroup}
-          saving={isLoading('userGroup_add_new')}
+          saving={isLoading(`userGroup_add_${newUserGroup.name.trim()}`)}
         />
       )}
 

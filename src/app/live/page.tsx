@@ -123,6 +123,15 @@ function LivePageClient() {
     }>;
   } | null>(null);
 
+  // EPG 錨定時間：切換頻道／節目單時更新一次即可。
+  // 直接寫 new Date() 會讓每次 render 都產生新物件，
+  // 造成 EpgScrollableRow 的定時器 effect 不斷重建。
+  const epgNow = useMemo(
+    () => new Date(),
+    // 只在 EPG 身份（頻道／來源／節目單 URL）變化時重算。
+    [epgData?.tvgId, epgData?.source, epgData?.epgUrl]
+  );
+
   // EPG 資料載入狀態
   const [isEpgLoading, setIsEpgLoading] = useState(false);
   const channelsAbortRef = useRef<AbortController | null>(null);
@@ -948,6 +957,8 @@ function LivePageClient() {
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    // 播放啟動看門狗的計時器：在 effect 頂層宣告，cleanup 才能清掉
+    let startupWatchdog: ReturnType<typeof setTimeout> | undefined;
 
     const preload = async () => {
       if (
@@ -962,16 +973,38 @@ function LivePageClient() {
 
       try {
         setPlaybackError(null);
-        // precheck type
+        // precheck type（15 秒超時：避免上游無回應時靜默卡死轉圈）
         let type = 'm3u8';
         const liveProxyParams = new URLSearchParams({
           url: videoUrl,
           'moontv-source': currentSourceRef.current?.key || '',
         });
         const precheckUrl = `/api/live/precheck?${liveProxyParams.toString()}`;
-        const precheckResponse = await fetch(precheckUrl, {
-          signal: controller.signal,
-        });
+        const precheckController = new AbortController();
+        const forwardOuterAbort = () => precheckController.abort();
+        controller.signal.addEventListener('abort', forwardOuterAbort);
+        let precheckTimedOut = false;
+        const precheckTimeout = setTimeout(() => {
+          precheckTimedOut = true;
+          precheckController.abort();
+        }, 15000);
+        let precheckResponse: Response;
+        try {
+          precheckResponse = await fetch(precheckUrl, {
+            signal: precheckController.signal,
+          });
+        } catch (fetchErr) {
+          // 超時觸發的 abort 會讓 fetch 拋 AbortError：此時必須看
+          // precheckTimedOut 旗標，不能當成一般取消靜默吞掉
+          if (!precheckTimedOut) throw fetchErr;
+          throw new Error('預檢查超時');
+        } finally {
+          clearTimeout(precheckTimeout);
+          controller.signal.removeEventListener('abort', forwardOuterAbort);
+        }
+        if (precheckTimedOut) {
+          throw new Error('預檢查超時');
+        }
         if (!precheckResponse.ok) {
           throw new Error(`預檢查失敗: ${precheckResponse.status}`);
         }
@@ -1049,8 +1082,21 @@ function LivePageClient() {
         });
 
         // 監聽播放器事件
+        // 播放啟動看門狗：20 秒內沒 ready/canplay 就報錯，避免無限轉圈
+        let playbackStarted = false;
+        startupWatchdog = setTimeout(() => {
+          if (cancelled || playbackStarted) return;
+          setIsVideoLoading(false);
+          setPlaybackError('直播啟動超時，請嘗試其他頻道');
+        }, 20000);
+        const markPlaybackStarted = () => {
+          playbackStarted = true;
+          clearTimeout(startupWatchdog);
+        };
+
         artPlayerRef.current.on('ready', () => {
           if (cancelled) return;
+          markPlaybackStarted();
           setPlaybackError(null);
           setIsVideoLoading(false);
         });
@@ -1064,6 +1110,7 @@ function LivePageClient() {
         });
 
         artPlayerRef.current.on('canplay', () => {
+          markPlaybackStarted();
           setIsVideoLoading(false);
         });
 
@@ -1073,6 +1120,7 @@ function LivePageClient() {
 
         artPlayerRef.current.on('error', (err: any) => {
           console.error('播放器錯誤:', err);
+          clearTimeout(startupWatchdog);
           if (!cancelled) {
             setIsVideoLoading(false);
             setPlaybackError('直播串流播放失敗，請嘗試其他頻道');
@@ -1089,13 +1137,18 @@ function LivePageClient() {
         if (cancelled || (err as Error)?.name === 'AbortError') return;
         console.error('創建播放器失敗:', err);
         setIsVideoLoading(false);
-        setPlaybackError('直播源連線失敗，請檢查網路或嘗試其他頻道');
+        setPlaybackError(
+          (err as Error)?.message === '預檢查超時'
+            ? '直播源預檢查超時，請嘗試其他頻道'
+            : '直播源連線失敗，請檢查網路或嘗試其他頻道'
+        );
       }
     };
     void preload();
     return () => {
       cancelled = true;
       controller.abort();
+      if (startupWatchdog) clearTimeout(startupWatchdog);
     };
   }, [Artplayer, Hls, videoUrl, currentChannel, loading]);
 
@@ -1463,7 +1516,7 @@ function LivePageClient() {
             {/* EPG節目單 */}
             <EpgScrollableRow
               programs={epgData?.programs || []}
-              currentTime={new Date()}
+              currentTime={epgNow}
               isLoading={isEpgLoading}
             />
           </div>
