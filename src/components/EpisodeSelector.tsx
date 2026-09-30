@@ -57,6 +57,8 @@ export interface EpisodeSelectorProps {
   preferSourcesTab?: boolean;
   /** 背景補到播放網址時回寫，換源點擊就不必再等詳情 */
   onSourceHydrated?: (source: SearchResult) => void;
+  /** 影片海報：某片源沒海報或海報掛掉時的備援（各源本來就是同一部片） */
+  videoPoster?: string;
 }
 
 const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
@@ -75,6 +77,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   precomputedVideoInfo,
   preferSourcesTab = false,
   onSourceHydrated,
+  videoPoster,
 }) => {
   const router = useRouter();
   const currentSourceInfo = useMemo(() => {
@@ -757,6 +760,8 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                   videoInfo,
                   attemptedSources.has(sourceKey)
                 );
+                // 各源本來就是同一部片：沒海報就用影片海報補，不留灰格
+                const rowPoster = displaySource.poster || videoPoster;
                 const qualityClass =
                   probe.quality === '4K' || probe.quality === '2K'
                     ? 'bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/40'
@@ -781,9 +786,9 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                   >
                     {/* 封面（縮小：換源時重點是片源名與測速，不是再讀一遍片名） */}
                     <div className='w-12 h-[4.5rem] sm:w-14 sm:h-20 bg-zinc-800 rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/5'>
-                      {displaySource.poster && !failedImages.has(sourceKey) ? (
+                      {rowPoster && !failedImages.has(sourceKey) ? (
                         <img
-                          src={processImageUrl(displaySource.poster)}
+                          src={processImageUrl(rowPoster)}
                           alt=''
                           className='w-full h-full object-cover'
                           referrerPolicy='no-referrer'
@@ -791,7 +796,17 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                             const img = e.currentTarget;
                             if (!img.dataset.retried && displaySource.poster) {
                               img.dataset.retried = 'true';
-                              img.src = getProxiedImageUrl(source.poster);
+                              img.src = getProxiedImageUrl(
+                                displaySource.poster
+                              );
+                              return;
+                            }
+                            // 主海報（含代理重試）都掛了，還有影片海報就換上
+                            if (
+                              videoPoster &&
+                              img.src !== processImageUrl(videoPoster)
+                            ) {
+                              img.src = processImageUrl(videoPoster);
                               return;
                             }
                             setFailedImages((prev) => {

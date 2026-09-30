@@ -3058,6 +3058,7 @@ function PlayPageClient() {
                 sourceSearchError={sourceSearchError}
                 precomputedVideoInfo={precomputedVideoInfo}
                 preferSourcesTab={Boolean(playbackSoftError)}
+                videoPoster={videoCover}
                 onSourceHydrated={(hydrated) => {
                   setAvailableSources((prev) =>
                     prev.map((item) =>

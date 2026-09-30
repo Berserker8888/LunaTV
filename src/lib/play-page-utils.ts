@@ -487,13 +487,16 @@ export function getSourceProbeView(
       : null;
   const ping = info.pingTime > 0 ? `${info.pingTime}ms` : null;
   const fast = info.pingTime > 0 && info.pingTime <= 1500;
+  // 每一列都給狀態標籤：夠快且有畫質才叫較穩定，其餘一律可播放，
+  // 避免慢速源那一格空白、整列格式對不齊
+  const stable = !!quality && fast;
 
   return {
     quality,
     speed,
     ping,
-    note: quality ? (fast ? '較穩定' : null) : '可播放',
-    noteTone: quality && fast ? 'good' : 'muted',
+    note: stable ? '較穩定' : '可播放',
+    noteTone: stable ? 'good' : 'muted',
   };
 }
 

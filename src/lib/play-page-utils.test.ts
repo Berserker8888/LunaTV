@@ -510,7 +510,7 @@ describe('畫質優先過濾（換源列表）', () => {
         { quality: '1080p', loadSpeed: '1.2 MB/s', pingTime: 1800 },
         true
       ).note
-    ).toBeNull();
+    ).toBe('可播放');
     expect(
       getSourceProbeView(
         { quality: '1080p', loadSpeed: '1.2 MB/s', pingTime: 200 },
