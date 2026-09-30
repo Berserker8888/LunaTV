@@ -29,27 +29,36 @@ export function TagManagerModal({
 
   const handleAdd = () => {
     const name = newName.trim();
-    if (!name || tags.some((t) => t.name === name)) return;
-    const updated = [...tags, { name, color: TAG_COLORS[newColor] }];
-    saveFavoriteTags(updated);
-    setTags(updated);
+    if (!name) return;
+    // functional update：避免連點時讀到舊的 tags
+    setTags((prev) => {
+      if (prev.some((t) => t.name === name)) return prev;
+      const updated = [...prev, { name, color: TAG_COLORS[newColor] }];
+      saveFavoriteTags(updated);
+      return updated;
+    });
     setNewName('');
   };
 
   const handleDelete = (index: number) => {
-    const deleted = tags[index];
-    const updated = tags.filter((_, i) => i !== index);
-    saveFavoriteTags(updated);
-    setTags(updated);
-    const allItems = getAllItemTags();
-    for (const key of Object.keys(allItems)) {
-      allItems[key] = allItems[key].filter((t) => t !== deleted.name);
-    }
-    // Legacy key kept for compatibility with existing localStorage data.
-    localStorage.setItem(
-      'moontv_favorite_tags_items',
-      JSON.stringify(allItems)
-    );
+    // functional update：避免連點刪除時讀到舊的 tags
+    setTags((prev) => {
+      const deleted = prev[index];
+      const updated = prev.filter((_, i) => i !== index);
+      saveFavoriteTags(updated);
+      if (deleted) {
+        const allItems = getAllItemTags();
+        for (const key of Object.keys(allItems)) {
+          allItems[key] = allItems[key].filter((t) => t !== deleted.name);
+        }
+        // Legacy key kept for compatibility with existing localStorage data.
+        localStorage.setItem(
+          'moontv_favorite_tags_items',
+          JSON.stringify(allItems)
+        );
+      }
+      return updated;
+    });
   };
 
   if (!open) return null;

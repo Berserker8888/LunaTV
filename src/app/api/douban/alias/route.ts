@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { setBoundedMapValue } from '@/lib/bounded-map';
+import { doubanCacheKey } from '@/lib/douban';
 import {
   buildDoubanSearchUrl,
   DoubanSearchResponse,
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const cacheKey = `${proxyType}:${rawQuery}`;
+  const cacheKey = doubanCacheKey('douban-alias', proxyType, rawQuery);
   const cached = ALIAS_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return jsonResponse(cached.aliases, cached.primary);

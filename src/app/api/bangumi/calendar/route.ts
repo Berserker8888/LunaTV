@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import type { BangumiCalendarData } from '@/lib/bangumi.client';
 import { BANGUMI_USER_AGENT } from '@/lib/bangumi-aliases';
 import {
@@ -18,7 +19,14 @@ let calendarCache: {
   data: BangumiCalendarData[];
 } | null = null;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, {
+    namespace: 'bangumi-calendar',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const now = Date.now();
   if (calendarCache && calendarCache.expiresAt > now) {
     return createCalendarResponse(calendarCache.data);

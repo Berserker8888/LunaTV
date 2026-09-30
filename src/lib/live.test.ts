@@ -36,4 +36,34 @@ describe('parseM3U', () => {
       'https://cdn.example/lists/channel.ts'
     );
   });
+
+  it('resolves a relative tvg-url against the playlist url', () => {
+    const playlist = [
+      '#EXTM3U x-tvg-url="epg/guide.xml"',
+      '#EXTINF:-1 tvg-id="c1",CH1',
+      'https://cdn.example/stream/ch1.m3u8',
+    ].join('\n');
+    const parsed = parseM3U(
+      'src',
+      playlist,
+      'https://cdn.example/lists/channels.m3u'
+    );
+
+    expect(parsed.tvgUrl).toBe('https://cdn.example/lists/epg/guide.xml');
+  });
+
+  it('keeps an absolute tvg-url untouched', () => {
+    const playlist = [
+      '#EXTM3U x-tvg-url="https://epg.example/guide.xml"',
+      '#EXTINF:-1 tvg-id="c1",CH1',
+      'https://cdn.example/stream/ch1.m3u8',
+    ].join('\n');
+    const parsed = parseM3U(
+      'src',
+      playlist,
+      'https://cdn.example/lists/channels.m3u'
+    );
+
+    expect(parsed.tvgUrl).toBe('https://epg.example/guide.xml');
+  });
 });

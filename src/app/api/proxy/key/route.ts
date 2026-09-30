@@ -34,14 +34,18 @@ export async function GET(request: Request) {
       );
     }
     const keyData = await readResponseBytesWithLimit(response, MAX_KEY_BYTES);
-    return new Response(keyData, {
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    });
+    // 預設不送 Access-Control-Allow-Origin（與 m3u8 代理一致）：站內播放為
+    // 同源請求不需要 CORS；之前任何網站的 JS 都能跨域讀取金鑰。
+    // 僅在管理員以環境變數明確允許跨站播放時才送。
+    const keyHeaders: Record<string, string> = {
+      'Content-Type': 'application/octet-stream',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Cache-Control': 'public, max-age=3600',
+    };
+    if (process.env.PROXY_ALLOW_CORS === 'true') {
+      keyHeaders['Access-Control-Allow-Origin'] = '*';
+    }
+    return new Response(keyData, { headers: keyHeaders });
   } catch (error) {
     if (error instanceof UnsafeRemoteUrlError) {
       return NextResponse.json({ error: 'Invalid url' }, { status: 400 });

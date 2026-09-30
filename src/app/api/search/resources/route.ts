@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireActiveUser } from '@/lib/api-auth';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { getAvailableApiSites } from '@/lib/config';
 import { toSeleneSearchResource } from '@/lib/selene-compat';
 
@@ -11,6 +12,13 @@ const PRIVATE_NO_STORE_HEADERS = {
 
 // Selene／Selene-TV／OrionTV 相容：回 key/name/api/detail/from/disabled
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(request, {
+    namespace: 'search-resources',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const activeUser = await requireActiveUser(request);
   if (!activeUser) {
     return NextResponse.json(

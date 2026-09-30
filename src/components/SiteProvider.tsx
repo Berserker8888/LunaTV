@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, ReactNode, useContext } from 'react';
+import { createContext, ReactNode, useContext, useMemo } from 'react';
 
 import { DEFAULT_SITE_NAME } from '@/lib/site-defaults';
 import { useClientValue } from '@/hooks/useClientMount';
@@ -57,9 +57,13 @@ export function SiteProvider({
   const siteName = localOverride?.siteName ?? initialSiteName;
   const announcement = localOverride?.announcement ?? initialAnnouncement;
 
+  // context value 穩定化：否則每次渲染都讓所有 useSite 消費者重渲染
+  const contextValue = useMemo(
+    () => ({ siteName, announcement }),
+    [siteName, announcement]
+  );
+
   return (
-    <SiteContext.Provider value={{ siteName, announcement }}>
-      {children}
-    </SiteContext.Provider>
+    <SiteContext.Provider value={contextValue}>{children}</SiteContext.Provider>
   );
 }

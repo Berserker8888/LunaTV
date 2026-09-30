@@ -133,9 +133,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('資料匯出失敗:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '資料匯出失敗' },
-      { status: 500 }
-    );
+    // 500 不回傳原始錯誤細節給客戶端
+    return NextResponse.json({ error: '資料匯出失敗' }, { status: 500 });
   }
 }

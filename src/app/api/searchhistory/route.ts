@@ -6,6 +6,7 @@ import {
   isValidApiSearchQuery,
   readJsonObject,
 } from '@/lib/api-input-validation';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { db } from '@/lib/db';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
 
@@ -19,6 +20,13 @@ const HISTORY_LIMIT = 20;
  * 返回 string[]
  */
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(request, {
+    namespace: 'searchhistory-get',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   try {
     const activeUser = await requireActiveUser(request);
     if (!activeUser) {

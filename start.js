@@ -120,45 +120,70 @@ function handleFailure(err) {
 // Start polling
 checkServer();
 
+// cron 執行中的防重疊旗標：上一輪還沒跑完就跳過，避免併發打架
+let cronJobRunning = false;
+
 // 执行 cron 任务的函数
 function executeCronJob() {
+  if (cronJobRunning) {
+    console.log('Previous cron job still running, skipping this round.');
+    return;
+  }
+  cronJobRunning = true;
+
   const rawHostname = process.env.HOSTNAME || 'localhost';
   const pollHostname = rawHostname === '0.0.0.0' ? '127.0.0.1' : rawHostname;
   const cronUrl = `http://${pollHostname}:${process.env.PORT || 3000}/api/cron?wait=true`;
 
   console.log(`Executing cron job: ${cronUrl}`);
 
+  const done = () => {
+    cronJobRunning = false;
+  };
+
   const cronSecret =
     process.env.CRON_SECRET || process.env.INTERNAL_CRON_SECRET;
-  const req = http.get(
-    cronUrl,
-    {
-      headers: {
-        Authorization: `Bearer ${cronSecret}`,
+  // http.get 參數非法（如 HOSTNAME 被設成奇怪的值）會同步拋錯：
+  // 必須在這裡接住，否則 cronJobRunning 永遠是 true，之後的 cron 全被跳過。
+  let req;
+  try {
+    req = http.get(
+      cronUrl,
+      {
+        headers: {
+          Authorization: `Bearer ${cronSecret}`,
+        },
       },
-    },
-    (res) => {
-      let data = '';
+      (res) => {
+        let data = '';
 
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
 
-      res.on('end', () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          console.log('Cron job executed successfully:', data);
-        } else {
-          console.error('Cron job failed:', res.statusCode, data);
-        }
-      });
-    }
-  );
+        res.on('end', () => {
+          done();
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            console.log('Cron job executed successfully:', data);
+          } else {
+            console.error('Cron job failed:', res.statusCode, data);
+          }
+        });
+      }
+    );
+  } catch (err) {
+    done();
+    console.error('Error starting cron request:', err);
+    return;
+  }
 
   req.on('error', (err) => {
+    done();
     console.error('Error executing cron job:', err);
   });
 
   req.setTimeout(CRON_REQUEST_TIMEOUT_MS, () => {
+    done();
     console.error(`Cron job timeout after ${CRON_REQUEST_TIMEOUT_MS / 1000}s`);
     req.destroy();
   });

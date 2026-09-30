@@ -142,8 +142,8 @@ export async function GET(request: Request) {
     headers.set('Content-Type', contentType);
     headers.set('X-Content-Type-Options', 'nosniff');
 
-    // 設置快取頭
-    headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400'); // 快取一天
+    // 設置快取頭：授權端點只能用 private，避免共用快取混到別人的內容
+    headers.set('Cache-Control', 'private, max-age=86400'); // 快取一天
 
     // 直接返回圖片流
     return new Response(imageBytes, {

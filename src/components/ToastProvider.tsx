@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -59,8 +60,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // context value 穩定化：否則每次新增/移除 toast 都會讓所有 useToast 消費者重渲染
+  const contextValue = useMemo(() => ({ toast }), [toast]);
+
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <div className='fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 pointer-events-none'>
         {toasts.map((t) => (
