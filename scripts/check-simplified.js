@@ -133,6 +133,8 @@ const EXCLUDED_FILES = [
   'douban-to-simplified.test.ts',
   // 斷言繁簡轉換與變體生成，輸入與預期值兩邊都必須出現簡體字面量
   'chinese.test.ts',
+  // 斷言 TMDB 別名抽取：輸入是 TMDB 回傳的簡體／陸譯標題，預期值亦然
+  'tmdb-alias.test.ts',
 ];
 
 files.forEach((file) => {

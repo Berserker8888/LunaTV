@@ -95,6 +95,10 @@ const SECOND_LAYER_EXEMPTIONS: Record<string, Exemption> = {
     reason: '只代理公開中繼資料，不涉及使用者資料或本站設定',
     requiresRateLimit: true,
   },
+  'tmdb/alias/route.ts': {
+    reason: '只代理公開中繼資料，不涉及使用者資料或本站設定',
+    requiresRateLimit: true,
+  },
   'douban/categories/route.ts': {
     reason: '只代理公開中繼資料，不涉及使用者資料或本站設定',
     requiresRateLimit: true,

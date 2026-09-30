@@ -170,27 +170,45 @@ function SearchPageClient() {
   /**
    * 台灣片名在大陸片源站常有完全不同的譯名（魔戒→指环王），
    * 字元轉換與內建別名表都涵蓋不到。搜尋完全沒有結果時，
-   * 改用豆瓣反查大陸片名再搜一輪；失敗則靜默維持原本的空結果。
+   * 先用豆瓣反查大陸片名；豆瓣被限流或查無時，改打
+   * TMDB alternative_titles 備援。拿到別名就重搜一輪，
+   * 失敗則靜默維持原本的空結果。
    */
-  const retryWithDoubanAlias = async (originalQuery: string) => {
+  const retryWithTitleAlias = async (originalQuery: string) => {
     if (aliasRetriedRef.current === originalQuery) return;
     aliasRetriedRef.current = originalQuery;
+
+    /** 期間使用者可能已改搜別的關鍵字 */
+    const stillCurrent = () => currentQueryRef.current === originalQuery;
+
+    const fetchAliasPrimary = async (url: string): Promise<string | null> => {
+      try {
+        const aliasResponse = await fetch(url);
+        if (!aliasResponse.ok || !stillCurrent()) return null;
+        const { primary } = (await aliasResponse.json()) as {
+          primary?: string | null;
+        };
+        return primary || null;
+      } catch {
+        return null;
+      }
+    };
 
     try {
       const proxyType =
         localStorage.getItem('doubanDataSource') || 'cmliussss-cdn-tencent';
-      const aliasResponse = await fetch(
+      let primary = await fetchAliasPrimary(
         `/api/douban/alias?q=${encodeURIComponent(
           originalQuery
         )}&proxyType=${encodeURIComponent(proxyType)}`
       );
-      if (!aliasResponse.ok) return;
-      const { primary } = (await aliasResponse.json()) as {
-        primary?: string | null;
-      };
-      if (!primary) return;
-      // 期間使用者可能已改搜別的關鍵字
-      if (currentQueryRef.current !== originalQuery) return;
+      // 豆瓣被限流或查無：改用 TMDB alternative_titles 備援
+      if (!primary && stillCurrent()) {
+        primary = await fetchAliasPrimary(
+          `/api/tmdb/alias?q=${encodeURIComponent(originalQuery)}`
+        );
+      }
+      if (!primary || !stillCurrent()) return;
 
       setIsLoading(true);
       const searchResponse = await fetch(
@@ -218,7 +236,7 @@ function SearchPageClient() {
         setCompletedSources(1);
       }
     } catch {
-      // 豆瓣不可用時維持原本的空結果
+      // 別名來源不可用時維持原本的空結果
     } finally {
       if (currentQueryRef.current === originalQuery) {
         setIsLoading(false);
@@ -682,7 +700,7 @@ function SearchPageClient() {
                   eventSourceRef.current = null;
                 }
                 if (receivedCountRef.current === 0) {
-                  void retryWithDoubanAlias(trimmed);
+                  void retryWithTitleAlias(trimmed);
                 }
                 break;
             }
@@ -755,7 +773,7 @@ function SearchPageClient() {
             }
             setIsLoading(false);
             if (receivedCountRef.current === 0) {
-              void retryWithDoubanAlias(trimmedQuery);
+              void retryWithTitleAlias(trimmedQuery);
             }
           })
           .catch(() => {
