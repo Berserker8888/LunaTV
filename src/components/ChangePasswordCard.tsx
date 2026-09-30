@@ -137,6 +137,7 @@ export default function ChangePasswordCard() {
               id='current-password'
               type='password'
               autoComplete='current-password'
+              maxLength={128}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className={inputClass}

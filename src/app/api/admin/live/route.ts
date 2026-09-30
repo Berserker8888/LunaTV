@@ -222,7 +222,13 @@ export async function POST(request: NextRequest) {
 
             // 更新字段（除了 key 和 from）
             editSource.name = (name as string).trim();
-            editSource.url = (url as string).trim();
+            const nextUrl = (url as string).trim();
+            // URL 變更時清掉該源的頻道快取，否則舊 URL 續留 allowlist、
+            // 使用者會繼續看到舊頻道列表
+            if (nextUrl !== editSource.url) {
+              deleteCachedLiveChannels(key as string);
+            }
+            editSource.url = nextUrl;
             editSource.ua = (ua as string | undefined)?.trim() || '';
             editSource.epg = (epg as string | undefined)?.trim() || '';
 
@@ -274,9 +280,8 @@ export async function POST(request: NextRequest) {
     if (outcome !== 'ok') return outcome;
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '操作失敗' },
-      { status: 500 }
-    );
+    console.error('直播源操作失敗:', error);
+    // 500 不回傳原始錯誤細節給客戶端
+    return NextResponse.json({ error: '操作失敗' }, { status: 500 });
   }
 }

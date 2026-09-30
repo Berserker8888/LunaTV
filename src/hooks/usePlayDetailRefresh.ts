@@ -157,8 +157,9 @@ export function usePlayDetailRefresh({
       return runRefreshEpisodesIfNeeded({
         source: currentSourceRef.current,
         id: currentIdRef.current,
-        currentSource: currentSourceRef.current,
-        currentId: currentIdRef.current,
+        // 傳即時 getter 而非呼叫當下快照：fetch 回來後才能真正偵測中途切源
+        getCurrentSource: () => currentSourceRef.current,
+        getCurrentId: () => currentIdRef.current,
         currentIndex: currentEpisodeIndexRef.current,
         currentEpisodeCount: detailRef.current?.episodes?.length || 0,
         inFlight: episodeRefreshInFlightRef.current,

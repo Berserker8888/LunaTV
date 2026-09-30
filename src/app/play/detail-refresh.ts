@@ -142,8 +142,9 @@ export type RefreshEpisodesResult = {
 export async function runRefreshEpisodesIfNeeded(options: {
   source: string | null | undefined;
   id: string | null | undefined;
-  currentSource: string | null | undefined;
-  currentId: string | null | undefined;
+  /** 回傳「現在」正在播的 source／id（抓取完成後即時比對，偵測中途切源） */
+  getCurrentSource?: () => string | null | undefined;
+  getCurrentId?: () => string | null | undefined;
   currentIndex: number;
   currentEpisodeCount: number;
   inFlight: boolean;
@@ -189,11 +190,13 @@ export async function runRefreshEpisodesIfNeeded(options: {
   options.setInFlight(true);
   try {
     const fresh = await fetchFreshDetail(source, id);
-    if (
-      !fresh ||
-      options.currentSource !== source ||
-      options.currentId !== id
-    ) {
+    // 抓取期間使用者可能已切源／切集：用即時 getter 比對，過期結果直接丟棄。
+    // getter 沒提供時不比對（維持舊行為），避免 undefined 永遠不等於 source。
+    const sourceChanged =
+      options.getCurrentSource != null && options.getCurrentSource() !== source;
+    const idChanged =
+      options.getCurrentId != null && options.getCurrentId() !== id;
+    if (!fresh || sourceChanged || idChanged) {
       if (notifyWhenUnchanged) notify('目前仍是最新一集', 'info');
       return {
         updated: false,

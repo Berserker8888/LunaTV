@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { setBoundedMapValue } from '@/lib/bounded-map';
 import { getCacheTime } from '@/lib/config';
-import { fetchDoubanData, toSimplified } from '@/lib/douban';
+import { doubanCacheKey, fetchDoubanData, toSimplified } from '@/lib/douban';
 import { logger } from '@/lib/logger';
 import { DoubanResult } from '@/lib/types';
 interface DoubanRecommendApiResponse {
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
   const target = `${baseUrl}?${params.toString()}`;
 
   // 檢查快取
-  const cacheKey = `douban:recommends:${target}`;
+  const cacheKey = doubanCacheKey('douban-recommends', target);
   const now = Date.now();
   const cached = RECOMMENDS_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > now) {
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
   try {
     const doubanData =
       await fetchDoubanData<DoubanRecommendApiResponse>(target);
-    const list = doubanData.items
+    const list = (doubanData.items ?? [])
       .filter((item) => item.type == 'movie' || item.type == 'tv')
       .map((item) => ({
         id: item.id,

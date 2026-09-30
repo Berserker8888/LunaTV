@@ -2,6 +2,31 @@ import { setBoundedMapValue } from './bounded-map';
 import { readResponseTextWithLimit } from './response-limit';
 import { convertT2S } from './s2t';
 
+/**
+ * 同步 64 位雜湊（cyrb53）：douban.ts 會被客戶端 bundle 直接引用
+ * （douban.client.ts 從這裡拿 toSimplified），不能用 node:crypto。
+ * 這裡只是快取 key，不需要密碼學強度；輸出固定 16 hex，key 長度有界。
+ */
+function hashCacheKey(input: string): string {
+  let h1 = 0xdeadbeef ^ 0;
+  let h2 = 0x41c6ce57 ^ 0;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 =
+    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 =
+    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (
+    (h2 >>> 0).toString(16).padStart(8, '0') +
+    (h1 >>> 0).toString(16).padStart(8, '0')
+  );
+}
+
 interface CachedDoubanEntry {
   expiresAt: number;
   data: unknown;
@@ -11,6 +36,18 @@ const DOUBAN_CACHE = new Map<string, CachedDoubanEntry>();
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 分鐘快取生命週期
 const MAX_DOUBAN_CACHE_ENTRIES = 200;
 const MAX_DOUBAN_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * 豆瓣快取 key 產生器：參數先截短再雜湊，避免使用者輸入直接拼進 key
+ * 把記憶體快取的 key 空間灌爆（key 長度固定 16 hex）。
+ */
+export function doubanCacheKey(
+  namespace: string,
+  ...parts: Array<string | number>
+): string {
+  const normalized = parts.map((p) => String(p).slice(0, 128)).join('|');
+  return `${namespace}:${hashCacheKey(normalized)}`;
+}
 
 /**
  * 通用的豆瓣数据获取函数

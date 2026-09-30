@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { setBoundedMapValue } from '@/lib/bounded-map';
 import { getCacheTime } from '@/lib/config';
-import { fetchDoubanData, toSimplified } from '@/lib/douban';
+import { doubanCacheKey, fetchDoubanData, toSimplified } from '@/lib/douban';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 
 interface DoubanCategoryApiResponse {
@@ -82,7 +82,14 @@ export async function GET(request: Request) {
   const simType = toSimplified(type);
 
   // 檢查快取
-  const cacheKey = `douban:categories:${kind}:${simCategory}:${simType}:${pageLimit}:${pageStart}`;
+  const cacheKey = doubanCacheKey(
+    'douban-categories',
+    kind,
+    simCategory,
+    simType,
+    pageLimit,
+    pageStart
+  );
   const now = Date.now();
   const cached = CATEGORIES_CACHE.get(cacheKey);
   if (cached && cached.expiresAt > now) {
@@ -105,8 +112,8 @@ export async function GET(request: Request) {
     // 調用豆瓣 API
     const doubanData = await fetchDoubanData<DoubanCategoryApiResponse>(target);
 
-    // 轉換數據格式
-    const list: DoubanItem[] = doubanData.items.map((item) => ({
+    // 轉換數據格式（上游欄位缺失時回空陣列，不要拋錯）
+    const list: DoubanItem[] = (doubanData.items ?? []).map((item) => ({
       id: item.id,
       title: item.title,
       poster: item.pic?.normal || item.pic?.large || '',

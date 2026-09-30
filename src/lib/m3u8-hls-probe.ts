@@ -81,6 +81,13 @@ export async function probeM3u8ByHls(
       video.remove();
     };
 
+    // timeoutId 必須在 finish 定義之前宣告：signal 若預先取消，
+    // onAbort → finish → clearTimeout 會在 TDZ 內拋 ReferenceError，
+    // 而非預期的 AbortError。
+    const timeoutId = setTimeout(() => {
+      finish(new Error('Timeout loading video metadata'));
+    }, HLS_PROBE_TIMEOUT_MS);
+
     const finish = (
       error: Error | null,
       value?: { quality: string; loadSpeed: string; pingTime: number }
@@ -103,10 +110,6 @@ export async function probeM3u8ByHls(
       return;
     }
     signal?.addEventListener('abort', onAbort, { once: true });
-
-    const timeoutId = setTimeout(() => {
-      finish(new Error('Timeout loading video metadata'));
-    }, HLS_PROBE_TIMEOUT_MS);
 
     const tryResolve = () => {
       if (!hasMetadata || !hasSpeed) return;

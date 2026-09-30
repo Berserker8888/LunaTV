@@ -7,6 +7,7 @@ import {
   parseAndValidateApiStorageKey,
   readJsonObject,
 } from '@/lib/api-input-validation';
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { db } from '@/lib/db';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
 import { PlayRecord } from '@/lib/types';
@@ -14,6 +15,13 @@ import { PlayRecord } from '@/lib/types';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  const limited = await enforceRateLimit(request, {
+    namespace: 'playrecords-get',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   try {
     const activeUser = await requireActiveUser(request);
     if (!activeUser) {

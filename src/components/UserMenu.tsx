@@ -112,14 +112,17 @@ export function UserMenu() {
 
   return (
     <div className='relative z-[999999] pointer-events-auto block user-menu-container'>
-      {/* 頂部頭像按鈕 */}
-      <div
+      {/* 頂部頭像按鈕：用 button 才有鍵盤可達性與語意 */}
+      <button
+        type='button'
+        aria-label='使用者選單'
+        aria-expanded={isOpen}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className='flex items-center space-x-3 cursor-pointer group select-none relative z-[999999]'
+        className='flex items-center space-x-3 cursor-pointer group select-none relative z-[999999] text-left'
       >
         <div className='w-9 h-9 rounded-xl bg-gradient-to-br from-accent via-purple-600 to-indigo-700 flex items-center justify-center text-white shadow-lg shadow-red-500/20 transition transform group-hover:scale-110 group-hover:rotate-3 duration-200'>
           <UserRound className='w-5 h-5' />
@@ -132,7 +135,7 @@ export function UserMenu() {
             {displayName}
           </p>
         </div>
-      </div>
+      </button>
 
       {/* 下拉選單 */}
       {isOpen && (

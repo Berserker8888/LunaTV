@@ -6,6 +6,7 @@ import {
   handleDatabaseOperationFailure,
 } from './api';
 import { cacheManager } from './cache';
+import { rollbackOptimisticArray } from './optimistic-rollback';
 import {
   isSameCachedData,
   SEARCH_HISTORY_KEY,
@@ -109,12 +110,19 @@ export async function addSearchHistory(keyword: string): Promise<void> {
         body: JSON.stringify({ keyword: trimmed }),
       });
     } catch (err) {
-      // 先 rollback 快取至原始狀態，再嘗試從 API 兜底重新整理
-      cacheManager.cacheSearchHistory(prevHistory);
-      window.dispatchEvent(
-        new CustomEvent('searchHistoryUpdated', {
-          detail: prevHistory,
-        })
+      // 只有陣列仍是樂觀寫入的樣子（沒被更新的搜尋動過）才還原，避免蓋掉較新的歷史
+      rollbackOptimisticArray(
+        cacheManager.getCachedSearchHistory(),
+        newHistory,
+        prevHistory,
+        (rolledBack) => {
+          cacheManager.cacheSearchHistory(rolledBack);
+          window.dispatchEvent(
+            new CustomEvent('searchHistoryUpdated', {
+              detail: rolledBack,
+            })
+          );
+        }
       );
       await handleDatabaseOperationFailure('searchHistory', err);
     }

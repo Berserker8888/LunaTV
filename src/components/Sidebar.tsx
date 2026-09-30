@@ -17,18 +17,10 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { createContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { CURRENT_VERSION } from '@/lib/version';
 import { useClientValue } from '@/hooks/useClientMount';
-
-interface SidebarContextType {
-  isCollapsed: boolean;
-}
-
-const SidebarContext = createContext<SidebarContextType>({
-  isCollapsed: false,
-});
 
 const NavLink = ({
   href,
@@ -96,8 +88,6 @@ const Sidebar = ({ activePath = '/' }: SidebarProps) => {
     router.push('/search');
   };
 
-  const contextValue = { isCollapsed: true };
-
   const showLive = useClientValue(
     () => Boolean(window.RUNTIME_CONFIG?.ENABLE_WEB_LIVE),
     false
@@ -123,77 +113,75 @@ const Sidebar = ({ activePath = '/' }: SidebarProps) => {
   }, [showLive, showCustom]);
 
   return (
-    <SidebarContext.Provider value={contextValue}>
-      <div className='hidden md:flex'>
-        <aside className='fixed top-0 left-0 h-screen z-50 flex w-24 flex-col items-center py-8 glass-panel border-r border-zinc-200/70 dark:border-accent/20 bg-white/90 dark:bg-anime-dark/80 shadow-[0_0_15px_rgba(0,229,255,0.05)]'>
-          <div className='flex items-center justify-center gap-3 mb-10 px-4 w-full'>
-            <MonitorPlay className='w-7 h-7 text-accent drop-shadow-[0_0_8px_rgba(0,180,216,0.6)]' />
-          </div>
+    <div className='hidden md:flex'>
+      <aside className='fixed top-0 left-0 h-screen z-50 flex w-24 flex-col items-center py-8 glass-panel border-r border-zinc-200/70 dark:border-accent/20 bg-white/90 dark:bg-anime-dark/80 shadow-[0_0_15px_rgba(0,229,255,0.05)]'>
+        <div className='flex items-center justify-center gap-3 mb-10 px-4 w-full'>
+          <MonitorPlay className='w-7 h-7 text-accent drop-shadow-[0_0_8px_rgba(0,180,216,0.6)]' />
+        </div>
 
-          <nav className='flex-1 w-full px-3 space-y-2 flex flex-col items-stretch'>
-            <NavLink
-              href='/'
-              icon={Home}
-              label='首頁'
-              isActive={active === '/'}
-              onClick={() => setActive('/')}
-            />
-            <NavLink
-              href='/search'
-              icon={Search}
-              label='搜尋'
-              isActive={active === '/search'}
-              onClick={(e) => {
-                e.preventDefault();
-                handleSearchClick();
-                setActive('/search');
-              }}
-            />
-            <NavLink
-              href='/?tab=favorites'
-              icon={BookMarked}
-              label='收藏夾'
-              isActive={active === '/?tab=favorites'}
-              onClick={() => setActive('/?tab=favorites')}
-            />
-            <NavLink
-              href='/history'
-              icon={Clock}
-              label='觀看記錄'
-              isActive={active === '/history'}
-              onClick={() => setActive('/history')}
-            />
+        <nav className='flex-1 w-full px-3 space-y-2 flex flex-col items-stretch'>
+          <NavLink
+            href='/'
+            icon={Home}
+            label='首頁'
+            isActive={active === '/'}
+            onClick={() => setActive('/')}
+          />
+          <NavLink
+            href='/search'
+            icon={Search}
+            label='搜尋'
+            isActive={active === '/search'}
+            onClick={(e) => {
+              e.preventDefault();
+              handleSearchClick();
+              setActive('/search');
+            }}
+          />
+          <NavLink
+            href='/?tab=favorites'
+            icon={BookMarked}
+            label='收藏夾'
+            isActive={active === '/?tab=favorites'}
+            onClick={() => setActive('/?tab=favorites')}
+          />
+          <NavLink
+            href='/history'
+            icon={Clock}
+            label='觀看記錄'
+            isActive={active === '/history'}
+            onClick={() => setActive('/history')}
+          />
 
-            <div className='border-t border-accent/10 my-4' />
+          <div className='border-t border-accent/10 my-4' />
 
-            {menuItems.map((item) => {
-              const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
-              const decodedActive = decodeURIComponent(active);
-              const decodedItemHref = decodeURIComponent(item.href);
-              const isActive =
-                decodedActive === decodedItemHref ||
-                (decodedActive.startsWith('/douban') &&
-                  decodedActive.includes(`type=${typeMatch}`));
-              return (
-                <NavLink
-                  key={item.label}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  isActive={isActive}
-                  onClick={() => setActive(item.href)}
-                />
-              );
-            })}
-          </nav>
+          {menuItems.map((item) => {
+            const typeMatch = item.href.match(/type=([^&]+)/)?.[1];
+            const decodedActive = decodeURIComponent(active);
+            const decodedItemHref = decodeURIComponent(item.href);
+            const isActive =
+              decodedActive === decodedItemHref ||
+              (decodedActive.startsWith('/douban') &&
+                decodedActive.includes(`type=${typeMatch}`));
+            return (
+              <NavLink
+                key={item.label}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                isActive={isActive}
+                onClick={() => setActive(item.href)}
+              />
+            );
+          })}
+        </nav>
 
-          <span className='text-[10px] text-zinc-500 dark:text-zinc-600 mt-auto'>
-            {CURRENT_VERSION}
-          </span>
-        </aside>
-        <div className='w-24' />
-      </div>
-    </SidebarContext.Provider>
+        <span className='text-[10px] text-zinc-500 dark:text-zinc-600 mt-auto'>
+          {CURRENT_VERSION}
+        </span>
+      </aside>
+      <div className='w-24' />
+    </div>
   );
 };
 

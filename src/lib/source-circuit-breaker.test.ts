@@ -76,6 +76,19 @@ describe('source circuit breaker', () => {
     expect(isSourceTripped('src-a')).toBe(true);
   });
 
+  it('allows a new probe after the second cooldown (never permanently stuck)', () => {
+    for (let i = 0; i < 3; i++) recordSourceFailure('src-a');
+    jest.advanceTimersByTime(COOLDOWN_MS + 1000);
+    expect(isSourceTripped('src-a')).toBe(false); // 第一次探測放行
+    recordSourceFailure('src-a'); // 探測失敗 → 重新冷卻
+    expect(isSourceTripped('src-a')).toBe(true);
+
+    // 第二個完整冷卻期過後，必須再次放行探測，而不是永久跳過該片源
+    jest.advanceTimersByTime(COOLDOWN_MS + 1000);
+    expect(isSourceTripped('src-a')).toBe(false); // 第二次探測放行
+    expect(isSourceTripped('src-a')).toBe(true); // 仍只放行一個
+  });
+
   it('fully recovers when the probe succeeds', () => {
     for (let i = 0; i < 3; i++) recordSourceFailure('src-a');
     jest.advanceTimersByTime(COOLDOWN_MS + 1000);
