@@ -185,14 +185,14 @@ const SearchResultFilter: React.FC<SearchResultFilterProps> = ({
               onClick={() => handleCategoryClick(category.key)}
               aria-expanded={activeCategory === category.key}
               aria-haspopup='listbox'
-              className={`relative z-10 px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-4 md:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+              className={`relative z-10 px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap border ${
                 activeCategory === category.key
                   ? isDefaultValue(category.key)
-                    ? 'text-zinc-100 cursor-default'
-                    : 'text-accent cursor-default'
+                    ? 'text-zinc-100 border-zinc-600 bg-zinc-800 cursor-default'
+                    : 'text-accent border-accent/50 bg-accent/10 cursor-default'
                   : isDefaultValue(category.key)
-                    ? 'text-zinc-400 hover:text-zinc-100 cursor-pointer'
-                    : 'text-accent hover:text-accent-deep cursor-pointer'
+                    ? 'text-zinc-400 border-zinc-700/60 bg-zinc-900/50 hover:text-zinc-100 hover:border-zinc-600 cursor-pointer'
+                    : 'text-accent border-accent/50 bg-accent/10 hover:text-accent-deep cursor-pointer'
               }`}
             >
               <span>{getDisplayText(category.key)}</span>
@@ -235,10 +235,10 @@ const SearchResultFilter: React.FC<SearchResultFilterProps> = ({
               }
               onChange({ ...mergedValues, yearOrder: next });
             }}
-            className={`relative z-10 px-1.5 py-0.5 sm:px-2 sm:py-1 md:px-4 md:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+            className={`relative z-10 px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap border ${
               mergedValues.yearOrder === 'none'
-                ? 'text-zinc-400 hover:text-zinc-100 cursor-pointer'
-                : 'text-accent hover:text-accent-deep cursor-pointer'
+                ? 'text-zinc-400 border-zinc-700/60 bg-zinc-900/50 hover:text-zinc-100 hover:border-zinc-600 cursor-pointer'
+                : 'text-accent border-accent/50 bg-accent/10 hover:text-accent-deep cursor-pointer'
             }`}
             aria-label={`按年份${
               mergedValues.yearOrder === 'none'

@@ -8,10 +8,9 @@ import {
   Search,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
-  clearStreamingSearchPreference,
   readStreamingSearchPreference,
   writeStreamingSearchPreference,
 } from '@/lib/streaming-search-preference';
@@ -115,11 +114,36 @@ export default function SettingsPage() {
   const [iptvDirect, setIptvDirect] = useState(() =>
     isClient ? localStorage.getItem('iptvDirectConnect') === 'true' : false
   );
-  const [saveMessage, setSaveMessage] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const saveMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+
+  // 即時儲存：任何設定一變動就寫入 localStorage，不再需要手動按儲存按鈕。
+  // mounted 前不執行，避免 SSR／首輪 hydration 時寫入預設值覆蓋使用者設定。
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem('doubanDataSource', doubanSource);
+      localStorage.setItem('doubanProxyUrl', proxyUrl);
+      localStorage.setItem('doubanImageProxyType', imageProxyType);
+      localStorage.setItem('doubanImageProxyUrl', imageProxyUrl);
+      localStorage.setItem('enableOptimization', String(enableOptimization));
+      localStorage.setItem('defaultAggregateSearch', String(aggregateResults));
+      localStorage.removeItem('defaultAggregateResults');
+      writeStreamingSearchPreference(localStorage, streamSearch);
+      localStorage.setItem('iptvDirectConnect', String(iptvDirect));
+    } catch {
+      // 配額不足或無痕模式：寫入失敗時靜默忽略，下次變動再試
+    }
+  }, [
+    mounted,
+    doubanSource,
+    proxyUrl,
+    imageProxyType,
+    imageProxyUrl,
+    enableOptimization,
+    aggregateResults,
+    streamSearch,
+    iptvDirect,
+  ]);
 
   const handleBack = () => {
     if (typeof window !== 'undefined') {
@@ -134,62 +158,8 @@ export default function SettingsPage() {
     router.back();
   };
 
-  useEffect(() => {
-    return () => {
-      if (saveMessageTimerRef.current) {
-        clearTimeout(saveMessageTimerRef.current);
-      }
-    };
-  }, []);
-
-  const showSaveMessage = (message: string) => {
-    if (saveMessageTimerRef.current) {
-      clearTimeout(saveMessageTimerRef.current);
-    }
-    setSaveMessage(message);
-    saveMessageTimerRef.current = setTimeout(() => {
-      setSaveMessage('');
-      saveMessageTimerRef.current = null;
-    }, 2000);
-  };
-
-  const handleSave = () => {
-    // 沒有這道 try 的話，配額不足或無痕模式下第一個 setItem 就會拋錯：
-    // 後面的設定全部沒寫入，而且連「已儲存」的提示都不會執行——
-    // 使用者按了儲存卻毫無反應，也不知道失敗了。
-    try {
-      localStorage.setItem('doubanDataSource', doubanSource);
-      localStorage.setItem('doubanProxyUrl', proxyUrl);
-      localStorage.setItem('doubanImageProxyType', imageProxyType);
-      localStorage.setItem('doubanImageProxyUrl', imageProxyUrl);
-      localStorage.setItem('enableOptimization', String(enableOptimization));
-      localStorage.setItem('defaultAggregateSearch', String(aggregateResults));
-      localStorage.removeItem('defaultAggregateResults');
-      writeStreamingSearchPreference(localStorage, streamSearch);
-      localStorage.setItem('iptvDirectConnect', String(iptvDirect));
-      showSaveMessage('設定已儲存');
-    } catch {
-      showSaveMessage('儲存失敗，瀏覽器可能已停用或用盡本機儲存空間');
-    }
-  };
-
   const handleReset = () => {
-    try {
-      localStorage.removeItem('doubanDataSource');
-      localStorage.removeItem('doubanProxyUrl');
-      localStorage.removeItem('doubanImageProxyType');
-      localStorage.removeItem('doubanImageProxyUrl');
-      localStorage.removeItem('enableOptimization');
-      localStorage.removeItem('defaultAggregateSearch');
-      localStorage.removeItem('defaultAggregateResults');
-      clearStreamingSearchPreference(localStorage);
-      localStorage.removeItem('iptvDirectConnect');
-    } catch {
-      // localStorage 清除失敗（停用或配額爆掉）時不要報成功，
-      // 否則舊設定重整後會復活、使用者卻以為已重設
-      showSaveMessage('重設失敗，瀏覽器可能已停用或用盡本機儲存空間');
-      return;
-    }
+    // 重設為預設值；即時儲存的 useEffect 會自動把新值寫入 localStorage
     setDoubanSource('cmliussss-cdn-tencent');
     setProxyUrl('');
     setImageProxyType('cmliussss-cdn-tencent');
@@ -198,7 +168,6 @@ export default function SettingsPage() {
     setAggregateResults(true);
     setStreamSearch(true);
     setIptvDirect(false);
-    showSaveMessage('已恢復預設值');
   };
 
   if (!mounted) return null;
@@ -420,25 +389,10 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* 儲存按鈕 */}
-        <button
-          onClick={handleSave}
-          className='w-full py-4 bg-accent text-white font-bold rounded-xl shadow-lg shadow-accent/25 hover:bg-accent/90 hover:shadow-accent/35 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 tracking-wide'
-        >
-          儲存設定
-        </button>
-
         <p className='text-center text-xs text-zinc-500'>
-          這些設定儲存在本地瀏覽器中
+          這些設定儲存在本地瀏覽器中，調整後立即生效
         </p>
       </div>
-
-      {/* 儲存提示 */}
-      {saveMessage && (
-        <div className='fixed bottom-8 left-1/2 -translate-x-1/2 bg-accent/90 text-white px-6 py-3 rounded-xl text-sm font-medium shadow-2xl backdrop-blur-sm z-50'>
-          {saveMessage}
-        </div>
-      )}
     </div>
   );
 }

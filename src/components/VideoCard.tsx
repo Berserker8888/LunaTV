@@ -655,7 +655,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
     return (
       <>
         <div
-          className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-300 ease-out hover:scale-[1.05] hover:-translate-y-1 hover:shadow-xl hover:shadow-accent/20 hover:z-[500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-deep'
+          className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-300 ease-out hover:shadow-xl hover:shadow-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-deep'
           onClick={handleClick}
           onKeyDown={handleKeyDown}
           role='article'
@@ -675,6 +675,14 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
             } as React.CSSProperties
           }
           onContextMenu={(e) => {
+            // 桌面端放行瀏覽器預設右鍵選單（新分頁開啟等）；
+            // 只有觸控裝置才彈出自訂操作選單。
+            if (
+              typeof window !== 'undefined' &&
+              window.matchMedia('(pointer: fine)').matches
+            ) {
+              return;
+            }
             // 阻止預設右鍵選單
             e.preventDefault();
             e.stopPropagation();
@@ -908,28 +916,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
               />
             )}
 
-            {/* 年份徽章 */}
-            {config.showYear &&
-              actualYear &&
-              actualYear !== 'unknown' &&
-              actualYear.trim() !== '' && (
-                <div
-                  className='absolute top-2 bg-black/70 text-white text-xs font-semibold px-2 py-1 rounded backdrop-blur-sm shadow-sm transition-all duration-300 ease-out group-hover:opacity-90 left-2'
-                  style={
-                    {
-                      WebkitUserSelect: 'none',
-                      userSelect: 'none',
-                      WebkitTouchCallout: 'none',
-                    } as React.CSSProperties
-                  }
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    return false;
-                  }}
-                >
-                  {actualYear}
-                </div>
-              )}
+            {/* 年份徽章已整合進底部玻璃面板的標籤區，海報上不再單獨浮動 */}
 
             {(type_name ||
               (config.showRating && rate) ||
@@ -989,6 +976,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
               origin={origin}
               showProgress={config.showProgress}
               progress={progress}
+              year={config.showYear ? actualYear : undefined}
             />
           </div>
         </div>

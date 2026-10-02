@@ -29,15 +29,15 @@ interface MobileBottomNavProps {
 const MAIN_ITEMS = [
   { icon: Home, label: '首頁', href: '/' },
   { icon: Search, label: '搜尋', href: '/search' },
-  { icon: Film, label: '電影', href: '/douban?type=movie' },
-  { icon: Tv, label: '劇集', href: '/douban?type=tv' },
+  { icon: BookMarked, label: '收藏夾', href: '/?tab=favorites' },
+  { icon: Clock, label: '觀看記錄', href: '/history' },
 ];
 
 const BASE_MORE_ITEMS = [
+  { icon: Film, label: '電影', href: '/douban?type=movie' },
+  { icon: Tv, label: '劇集', href: '/douban?type=tv' },
   { icon: Cat, label: '動漫', href: '/douban?type=anime' },
   { icon: Clover, label: '綜藝', href: '/douban?type=show' },
-  { icon: BookMarked, label: '收藏夾', href: '/?tab=favorites' },
-  { icon: Clock, label: '觀看記錄', href: '/history' },
   { icon: Settings, label: '本機設定', href: '/settings' },
 ];
 
@@ -155,7 +155,7 @@ export default function MobileBottomNav({ activePath }: MobileBottomNavProps) {
                   aria-current={active ? 'page' : undefined}
                   className={`relative flex h-14 flex-col items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                     active
-                      ? 'bg-zinc-800 font-bold text-white after:absolute after:inset-x-1/4 after:top-0 after:h-0.5 after:rounded-full after:bg-white'
+                      ? 'font-bold text-accent after:absolute after:inset-x-1/4 after:top-0 after:h-0.5 after:rounded-full after:bg-accent'
                       : 'text-zinc-500 dark:text-zinc-400'
                   }`}
                 >
@@ -172,7 +172,7 @@ export default function MobileBottomNav({ activePath }: MobileBottomNavProps) {
               aria-expanded={moreOpen}
               className={`relative flex h-14 w-full flex-col items-center justify-center gap-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
                 moreOpen || moreActive
-                  ? 'bg-zinc-800 font-bold text-white after:absolute after:inset-x-1/4 after:top-0 after:h-0.5 after:rounded-full after:bg-white'
+                  ? 'font-bold text-accent after:absolute after:inset-x-1/4 after:top-0 after:h-0.5 after:rounded-full after:bg-accent'
                   : 'text-zinc-500 dark:text-zinc-400'
               }`}
             >

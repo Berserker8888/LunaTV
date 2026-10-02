@@ -5,6 +5,27 @@ export interface HlsAdFilterResult {
 
 const MAX_CUE_OUT_SEGMENTS_WITHOUT_CUE_IN = 6;
 
+/**
+ * 分段 URL 廣告關鍵字（轉小寫後比對）。
+ * 只收保守的強特徵，避免用過度寬鬆的子字串誤刪正常影片：
+ * - `/adjump`：常見廣告跳轉路徑（含 `/video/adjump/`）
+ * - `/ad/`、`/ads/`：路徑段級別的廣告目錄
+ * - `sponsor`、`advert`（含 advertisement）、`redtraffic`：常見廣告商標記
+ */
+const AD_URL_KEYWORDS = [
+  '/adjump',
+  '/ad/',
+  '/ads/',
+  'sponsor',
+  'advert',
+  'redtraffic',
+];
+
+const isAdSegmentUrl = (url: string) => {
+  const lower = url.toLowerCase();
+  return AD_URL_KEYWORDS.some((keyword) => lower.includes(keyword));
+};
+
 export function filterAdsFromM3U8Detailed(
   m3u8Content: string
 ): HlsAdFilterResult {
@@ -148,6 +169,14 @@ export function filterAdsFromM3U8Detailed(
         pendingSegmentTags = [];
         removedSegments++;
         cueOutSegmentCount++;
+        continue;
+      }
+
+      // 沒有標準廣告標記時，用分段 URL 關鍵字辨認廣告段：
+      // 連同該段的 EXTINF／BYTERANGE／PROGRAM-DATE-TIME 等標籤一起移除。
+      if (isAdSegmentUrl(line)) {
+        pendingSegmentTags = [];
+        removedSegments++;
         continue;
       }
 

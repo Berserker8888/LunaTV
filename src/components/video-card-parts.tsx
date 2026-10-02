@@ -9,8 +9,14 @@ export const NO_SELECT_STYLE: React.CSSProperties = {
   WebkitTouchCallout: 'none',
 };
 
-/** 阻止右鍵/長按預設選單 */
+/** 阻止右鍵/長按預設選單（僅觸控裝置；桌面端放行瀏覽器預設右鍵選單） */
 export const stopContextMenu = (e: React.SyntheticEvent) => {
+  if (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(pointer: fine)').matches
+  ) {
+    return;
+  }
   e.preventDefault();
   return false;
 };
@@ -147,7 +153,7 @@ export function AggregateSourcesIndicator({
   );
 }
 
-/** 卡片底部資訊面板：標題（含 tooltip）、集數/片源標籤、播放進度條 */
+/** 卡片底部資訊面板：標題（含 tooltip）、集數/年份/片源標籤、播放進度條 */
 export function CardGlassPanel({
   title,
   episodes,
@@ -157,6 +163,7 @@ export function CardGlassPanel({
   origin,
   showProgress,
   progress,
+  year,
 }: {
   title: string;
   episodes?: number;
@@ -166,6 +173,7 @@ export function CardGlassPanel({
   origin: 'vod' | 'live';
   showProgress: boolean;
   progress?: number;
+  year?: string;
 }) {
   return (
     <div
@@ -205,12 +213,21 @@ export function CardGlassPanel({
           </div>
         </div>
 
-        {/* 標籤區塊 (集數 + 片源) */}
+        {/* 標籤區塊 (集數 + 年份 + 片源) */}
         <div
           className='flex items-center gap-1.5 overflow-hidden w-full'
           style={NO_SELECT_STYLE}
           onContextMenu={stopContextMenu}
         >
+          {year && year !== 'unknown' && year.trim() !== '' && (
+            <span
+              className='shrink-0 rounded-full bg-zinc-800 text-white px-2 py-0.5 text-[10px] font-medium tracking-wide'
+              style={NO_SELECT_STYLE}
+              onContextMenu={stopContextMenu}
+            >
+              {year}
+            </span>
+          )}
           {episodes && episodes > 1 && (
             <span
               className='shrink-0 rounded-full bg-zinc-800 text-white px-2 py-0.5 text-[10px] font-medium tracking-wide'
