@@ -6,6 +6,19 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.6',
+    date: '2026-10-02',
+    content: `
+- 播放：m3u8 廣告過濾新增分段網址關鍵字辨認（/adjump、/ad/、/ads/、sponsor、advert、redtraffic），沒有標準廣告標記的資源站也能擋掉廣告段。
+- 卡片：hover 不再放大位移（只保留陰影），海報牆視覺更穩定；年份徽章整合進底部標籤區。
+- 卡片：桌面端右鍵恢復瀏覽器預設選單，觸控裝置維持長按操作選單。
+- 導航：手機底部導航改為首頁／搜尋／收藏夾／觀看記錄／更多，電影／劇集收進「更多」；選中狀態改輕量樣式。
+- 頂部：Logo 改掉 Impact 字體，移除與底部導航重複的搜尋按鈕。
+- 搜尋：篩選按鈕加上邊框背景，提高可發現性。
+- 設定：改為調整即時生效，不再需要手動按儲存按鈕。
+    `.trim(),
+  },
+  {
     version: 'v3.6.5',
     date: '2026-09-30',
     content: `
