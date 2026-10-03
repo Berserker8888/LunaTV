@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { filterAdsFromM3U8Detailed } from '@/lib/hls-ad-filter';
 import { getBaseUrl } from '@/lib/live';
 import { rewriteM3U8Content } from '@/lib/m3u8-rewrite';
@@ -13,8 +14,20 @@ import {
 export const runtime = 'nodejs';
 const M3U8_FETCH_TIMEOUT_MS = 10000;
 const MAX_M3U8_BYTES = 5 * 1024 * 1024;
+// m3u8 端點不檢查白名單（抓到合法清單後才把主機記入白名單），
+// 已登入使用者可藉此讓伺服器抓任意公網主機的內容。
+// 加使用者維度限流擋頻寬濫用；segment 不動，避免誤傷正常播放。
+const M3U8_RATE_LIMIT = 600;
+const M3U8_RATE_WINDOW_SECONDS = 60;
 
 export async function GET(request: Request) {
+  const limited = await enforceRateLimit(request, {
+    namespace: 'proxy-m3u8',
+    limit: M3U8_RATE_LIMIT,
+    windowSeconds: M3U8_RATE_WINDOW_SECONDS,
+  });
+  if (limited) return limited;
+
   const access = await authorizeProxyFetch(request, 'm3u8');
   if (!access.ok) return access.response;
 
