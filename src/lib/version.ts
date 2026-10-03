@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.9',
+    date: '2026-10-04',
+    content: `
+- 構建：generate-manifest.js 改為一律從 scripts/sw.template.js 生成 sw.js，模板的快取策略修改能即時反映到本機開發環境（之前只在 sw.js 不存在時讀模板）。
+- 安全：pnpm overrides 的 nanoid、browserslist、baseline-browser-mapping 改用 ^ 鎖定大版本，避免無上限跟進（nanoid 曾被拉到 6.x）；pnpm audit --prod 維持 0 漏洞。
+    `.trim(),
+  },
+  {
     version: 'v3.6.8',
     date: '2026-10-04',
     content: `

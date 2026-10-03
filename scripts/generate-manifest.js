@@ -109,22 +109,17 @@ try {
 // 同步 Service Worker 快取名稱的版本號：
 // sw.js 的 STATIC_CACHE 跟著版本走，activate 會清掉舊版快取，
 // 避免每次發版後舊的 _next/static 雜湊檔一直累積在使用者端。
-// sw.js 是生成檔（不進 git）：不存在時從 scripts/sw.template.js 生成。
+// sw.js 是生成檔（不進 git）：一律從 scripts/sw.template.js 生成，
+// 確保模板的快取策略修改能即時反映到本機開發環境。
 try {
   const pkg = JSON.parse(
     fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')
   );
   const swPath = path.join(publicDir, 'sw.js');
-  let sw;
-  if (fs.existsSync(swPath)) {
-    sw = fs.readFileSync(swPath, 'utf8');
-  } else {
-    sw = fs.readFileSync(
-      path.join(projectRoot, 'scripts', 'sw.template.js'),
-      'utf8'
-    );
-    console.log('ℹ️ sw.js 不存在，從模板生成');
-  }
+  const sw = fs.readFileSync(
+    path.join(projectRoot, 'scripts', 'sw.template.js'),
+    'utf8'
+  );
   const updated = sw.replace(
     /const STATIC_CACHE = 'lunatv-static-v[^']*';/,
     `const STATIC_CACHE = 'lunatv-static-v${pkg.version}';`
