@@ -124,28 +124,29 @@ function handleAuthFailure(
 }
 
 // 判斷是否需要跳過認證的路徑
-export function shouldSkipAuth(pathname: string): boolean {
-  const skipPaths = [
-    '/_next',
-    '/favicon.ico',
-    '/robots.txt',
-    '/manifest.json',
-    '/sw.js',
-    '/icons/',
-    '/logo.png',
-    '/offline.html',
-    '/splash/',
-    '/screenshot1.png',
-    '/screenshot2.png',
-    '/screenshot3.png',
-  ];
+//
+// 每個前綴後都要求 '/' 或字串結尾，避免 '/loginxxx' 這類路徑被誤放行。
+// '/_next' 是前綴（底下有 static、image 等子路徑），其餘是完整路徑。
+const SKIP_AUTH_PATTERNS: RegExp[] = [
+  /^\/_next(?:\/|$)/,
+  /^\/favicon\.ico$/,
+  /^\/robots\.txt$/,
+  /^\/manifest\.json$/,
+  /^\/sw\.js$/,
+  /^\/icons\//,
+  /^\/logo\.png$/,
+  /^\/offline\.html$/,
+  /^\/splash\//,
+  /^\/screenshot[123]\.png$/,
+];
 
-  return skipPaths.some((path) => pathname.startsWith(path));
+export function shouldSkipAuth(pathname: string): boolean {
+  return SKIP_AUTH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
 // 設定 proxy 匹配規則（Next 16 起 middleware 更名為 proxy，固定 Node.js runtime）
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|sw.js|login|warning|api/login|api/logout|api/cron|api/server-config|api/health).*)',
+    '/((?!_next/static(?:/|$)|_next/image(?:/|$)|favicon.ico(?:/|$)|sw.js(?:/|$)|login(?:/|$)|warning(?:/|$)|api/login(?:/|$)|api/logout(?:/|$)|api/cron(?:/|$)|api/server-config(?:/|$)|api/health(?:/|$)).*)',
   ],
 };
