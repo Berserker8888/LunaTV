@@ -303,10 +303,16 @@ describe('proxy.ts 第一層防護', () => {
   const proxySource = readSource(PROXY_FILE);
 
   it('matcher 的排除清單未被更動', () => {
-    const matcher = proxySource.match(/'\/\(\(\?!([^)]+)\)\.\*\)'/);
+    // matcher 格式：'/((?!排除項(?:/|$)|...).*)'
+    const matcher = proxySource.match(/'\/\(\(\?!(.+)\)\.\*\)'/);
     expect(matcher).not.toBeNull();
 
-    expect(matcher![1].split('|')).toEqual(EXPECTED_PROXY_EXCLUSIONS);
+    // 每個排除項後面都帶 (?:/|$) 邊界，避免前綴冒充；
+    // 注意不能用 split('|')，邊界裡面也有 |
+    const entries = [...matcher![1].matchAll(/([^|]+?)\(\?:\/\|\$\)/g)];
+    expect(entries.length).toBeGreaterThan(0);
+    const exclusions = entries.map((m) => m[1]);
+    expect(exclusions).toEqual(EXPECTED_PROXY_EXCLUSIONS);
   });
 
   it('被排除在第一層之外的 API 都有列入第二層豁免並說明理由', () => {
