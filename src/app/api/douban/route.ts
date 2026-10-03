@@ -5,7 +5,10 @@ import { setBoundedMapValue } from '@/lib/bounded-map';
 import { getCacheTime } from '@/lib/config';
 import { doubanCacheKey, fetchDoubanData, toSimplified } from '@/lib/douban';
 import { DoubanItem, DoubanResult } from '@/lib/types';
-import { readResponseTextWithLimit } from '@/lib/url-safety';
+import {
+  fetchSafeRemoteUrl,
+  readResponseTextWithLimit,
+} from '@/lib/url-safety';
 
 interface DoubanApiResponse {
   subjects: Array<{
@@ -175,7 +178,7 @@ async function handleTop250(pageStart: number, pageSize: number) {
   };
 
   try {
-    const fetchResponse = await fetch(target, fetchOptions);
+    const fetchResponse = await fetchSafeRemoteUrl(target, fetchOptions);
     if (!fetchResponse.ok) {
       throw new Error(`HTTP error! Status: ${fetchResponse.status}`);
     }

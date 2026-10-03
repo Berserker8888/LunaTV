@@ -1,13 +1,15 @@
 /**
  * 測試 src/instrumentation.ts 的啟動檢查。
  *
- * register() 讀的是 process.env，所以每個 case 都要先備份再還原。
+ * register() 每次呼叫都重讀 process.env，所以靜態 import 即可；
+ * 每個 case 備份還原 process.env。
  */
+import { register } from './instrumentation';
+
 describe('instrumentation register', () => {
   const OLD_ENV = process.env;
 
   beforeEach(() => {
-    jest.resetModules();
     process.env = { ...OLD_ENV, NEXT_RUNTIME: 'nodejs' };
   });
 
@@ -15,15 +17,10 @@ describe('instrumentation register', () => {
     process.env = OLD_ENV;
   });
 
-  async function loadAndRegister() {
-    const mod = await import('./instrumentation');
-    await mod.register();
-  }
-
   test('未設 TRUST_PROXY 時發出警告', async () => {
     delete process.env.TRUST_PROXY;
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadAndRegister();
+    await register();
     expect(
       warn.mock.calls.some((args) => String(args[0]).includes('TRUST_PROXY'))
     ).toBe(true);
@@ -33,7 +30,7 @@ describe('instrumentation register', () => {
   test('有設 TRUST_PROXY=true 時不警告', async () => {
     process.env.TRUST_PROXY = 'true';
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadAndRegister();
+    await register();
     expect(
       warn.mock.calls.some((args) => String(args[0]).includes('TRUST_PROXY'))
     ).toBe(false);
@@ -45,7 +42,7 @@ describe('instrumentation register', () => {
     process.env.STORAGE_TYPE = 'redis';
     process.env.NEXT_PUBLIC_STORAGE_TYPE = 'kvrocks';
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadAndRegister();
+    await register();
     expect(
       warn.mock.calls.some((args) => String(args[0]).includes('STORAGE_TYPE'))
     ).toBe(true);
@@ -57,7 +54,7 @@ describe('instrumentation register', () => {
     process.env.STORAGE_TYPE = 'redis';
     process.env.NEXT_PUBLIC_STORAGE_TYPE = 'redis';
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    await loadAndRegister();
+    await register();
     expect(
       warn.mock.calls.some((args) => String(args[0]).includes('STORAGE_TYPE'))
     ).toBe(false);

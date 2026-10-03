@@ -10,7 +10,10 @@ import {
   isAliasWorthRetrying,
   pickPrimaryAlias,
 } from '@/lib/douban-alias';
-import { readResponseTextWithLimit } from '@/lib/url-safety';
+import {
+  fetchSafeRemoteUrl,
+  readResponseTextWithLimit,
+} from '@/lib/url-safety';
 
 export const runtime = 'nodejs';
 
@@ -88,15 +91,18 @@ export async function GET(request: Request) {
 
   try {
     await throttle();
-    const response = await fetch(buildDoubanSearchUrl(rawQuery, proxyType), {
-      signal: controller.signal,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        Referer: 'https://movie.douban.com/',
-        Accept: 'application/json, text/plain, */*',
-      },
-    });
+    const response = await fetchSafeRemoteUrl(
+      buildDoubanSearchUrl(rawQuery, proxyType),
+      {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+          Referer: 'https://movie.douban.com/',
+          Accept: 'application/json, text/plain, */*',
+        },
+      }
+    );
 
     if (!response.ok) {
       // 豆瓣不可用時靜默降級，搜尋流程照舊
