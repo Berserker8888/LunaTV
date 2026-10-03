@@ -8,6 +8,8 @@
  * - 頁面導覽走網路，失敗時回退到預快取的離線頁。
  * - activate 時清除所有非本版快取（包含舊 next-pwa/workbox 時代的殘留）。
  */
+// 快取名稱的版本號由 scripts/generate-manifest.js 在 build/dev 前自動注入
+//（讀 package.json）。activate 會清掉舊版快取，避免 _next/static 雜湊檔累積。
 const STATIC_CACHE = 'lunatv-static-v1';
 const OWNED_CACHES = new Set([STATIC_CACHE]);
 const OFFLINE_URL = '/offline.html';
