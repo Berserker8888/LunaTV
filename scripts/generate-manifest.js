@@ -109,20 +109,28 @@ try {
 // 同步 Service Worker 快取名稱的版本號：
 // sw.js 的 STATIC_CACHE 跟著版本走，activate 會清掉舊版快取，
 // 避免每次發版後舊的 _next/static 雜湊檔一直累積在使用者端。
+// sw.js 是生成檔（不進 git）：不存在時從 scripts/sw.template.js 生成。
 try {
   const pkg = JSON.parse(
     fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')
   );
   const swPath = path.join(publicDir, 'sw.js');
-  const sw = fs.readFileSync(swPath, 'utf8');
+  let sw;
+  if (fs.existsSync(swPath)) {
+    sw = fs.readFileSync(swPath, 'utf8');
+  } else {
+    sw = fs.readFileSync(
+      path.join(projectRoot, 'scripts', 'sw.template.js'),
+      'utf8'
+    );
+    console.log('ℹ️ sw.js 不存在，從模板生成');
+  }
   const updated = sw.replace(
     /const STATIC_CACHE = 'lunatv-static-v[^']*';/,
     `const STATIC_CACHE = 'lunatv-static-v${pkg.version}';`
   );
-  if (updated !== sw) {
-    fs.writeFileSync(swPath, updated);
-    console.log(`✅ Synced sw.js cache version: v${pkg.version}`);
-  }
+  fs.writeFileSync(swPath, updated);
+  console.log(`✅ Synced sw.js cache version: v${pkg.version}`);
 } catch (error) {
   console.error('❌ Error syncing sw.js version:', error);
   process.exit(1);
