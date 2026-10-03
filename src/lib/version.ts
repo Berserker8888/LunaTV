@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.8',
+    date: '2026-10-04',
+    content: `
+- 安全：pnpm-workspace.yaml 補上 overrides，清掉 pnpm audit 剩餘 4 項（nanoid、browserslist、baseline-browser-mapping，皆為 next 傳遞依賴的建置期套件）；pnpm audit --prod 已無已知漏洞。
+- 構建：public/sw.js 改為生成檔（加入 .gitignore 並取消 git 追蹤），本機 pnpm dev/build 不再弄髒 git 工作區；Docker 與 Vercel 建置流程不受影響（build 前由 gen:manifest 重新生成）。
+    `.trim(),
+  },
+  {
     version: 'v3.6.7',
     date: '2026-10-03',
     content: `
