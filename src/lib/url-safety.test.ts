@@ -3,8 +3,10 @@ import { ReadableStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
 
 import {
+  BLOCKED_SUBNETS,
   fetchSafeRemoteUrl,
   getSafeImageContentType,
+  isBlockedAddress,
   parseSafeRemoteUrl,
   readResponseBytesWithLimit,
   readResponseJsonWithLimit,
@@ -92,9 +94,10 @@ describe('url safety helpers', () => {
   });
 
   it('rejects hexadecimal IPv4-mapped loopback addresses', async () => {
+    // 同步預檢（parseSafeRemoteUrl）先擋掉，錯誤訊息是預設的 Unsafe remote URL
     await expect(
       fetchSafeRemoteUrl('http://[::ffff:7f00:1]/private')
-    ).rejects.toThrow('Unsafe remote address');
+    ).rejects.toThrow('Unsafe remote URL');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -277,5 +280,80 @@ describe('getSafeImageContentType', () => {
     );
     expect(getSafeImageContentType('application/octet-stream')).toBeNull();
     expect(getSafeImageContentType('text/html')).toBeNull();
+  });
+});
+
+describe('isBlockedAddress（BlockList 資料表驅動）', () => {
+  // 每條子網規則一個代表位址，確保規則真的有裝進 BlockList
+  const BLOCKED_SAMPLES: Record<string, string> = {
+    '0.0.0.0/8': '0.0.0.1',
+    '10.0.0.0/8': '10.1.2.3',
+    '100.64.0.0/10': '100.64.0.1',
+    '127.0.0.0/8': '127.0.0.1',
+    '169.254.0.0/16': '169.254.10.20',
+    '172.16.0.0/12': '172.16.5.4',
+    '192.168.0.0/16': '192.168.1.1',
+    '198.18.0.0/15': '198.18.0.1',
+    '::/128': '::',
+    '::1/128': '::1',
+    '::/96': '::7f00:1',
+    'fc00::/7': 'fc00::1',
+    'fe80::/10': 'fe80::1',
+    'ff00::/8': 'ff02::1',
+  };
+
+  it('資料表的每條規則都有對應的測試樣本', () => {
+    const keys = new Set(BLOCKED_SUBNETS.map((r) => `${r.subnet}/${r.prefix}`));
+    for (const key of Object.keys(BLOCKED_SAMPLES)) {
+      expect(keys.has(key)).toBe(true);
+    }
+    expect(keys.size).toBe(Object.keys(BLOCKED_SAMPLES).length);
+  });
+
+  it.each(Object.entries(BLOCKED_SAMPLES))(
+    '擋掉 %s 的樣本 %s',
+    (_cidr, sample) => {
+      expect(isBlockedAddress(sample)).toBe(true);
+    }
+  );
+
+  it.each([
+    '8.8.8.8',
+    '1.1.1.1',
+    '93.184.216.34',
+    '2001:db8::1',
+    '2606:4700:4700::1111',
+  ])('放行公網位址 %s', (addr) => {
+    expect(isBlockedAddress(addr)).toBe(false);
+  });
+
+  it.each(['::ffff:127.0.0.1', '::ffff:7f00:1', '::ffff:10.1.2.3'])(
+    '擋掉 IPv4-mapped %s（BlockList 自動對應）',
+    (addr) => {
+      expect(isBlockedAddress(addr)).toBe(true);
+    }
+  );
+
+  it('放行 IPv4-mapped 的公網位址', () => {
+    expect(isBlockedAddress('::ffff:0808:0808')).toBe(false);
+  });
+
+  it('localhost 字串照樣擋', () => {
+    expect(isBlockedAddress('localhost')).toBe(true);
+    expect(isBlockedAddress('LOCALHOST')).toBe(true);
+  });
+
+  it('NAT64 只看內嵌 IPv4：內嵌私網就擋，內嵌公網就放', () => {
+    // 64:ff9b::7f00:1 內嵌 127.0.0.1 → 擋
+    expect(isBlockedAddress('64:ff9b::7f00:1')).toBe(true);
+    // 64:ff9b::0808:0808 內嵌 8.8.8.8 → 放行（整段封會打壞 IPv6-only 主機）
+    expect(isBlockedAddress('64:ff9b::0808:0808')).toBe(false);
+  });
+
+  it('parseSafeRemoteUrl 對字面 IP 做同步預檢', () => {
+    expect(parseSafeRemoteUrl('http://127.0.0.1/x.m3u8')).toBeNull();
+    expect(parseSafeRemoteUrl('http://[::ffff:10.0.0.1]/x.m3u8')).toBeNull();
+    expect(parseSafeRemoteUrl('http://localhost:3000/x')).toBeNull();
+    expect(parseSafeRemoteUrl('https://example.com/x.m3u8')).not.toBeNull();
   });
 });

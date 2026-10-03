@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 import { Agent } from 'undici';
 
 import { setBoundedMapValue } from './bounded-map';
@@ -11,19 +11,127 @@ export {
   RemoteResponseTooLargeError,
 } from './response-limit';
 
-const PRIVATE_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^0\.0\.0\.0$/,
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^169\.254\./,
-  /^::1$/,
-  /^fc00:/i,
-  /^fd00:/i,
-  /^fe[89ab][0-9a-f]:/i,
+/**
+ * 被封鎖的子網資料表。
+ *
+ * 用 node:net BlockList 取代手寫的 IPv4 regex／字串前綴比對。
+ * 測試會直接遍歷這張表，確保每條規則都有對應的測試案例。
+ *
+ * 注意 BlockList 不會自動涵蓋的範圍（已實測確認）：
+ * - 0.0.0.0/8、100.64.0.0/10、198.18.0.0/15、::/128 都要明列
+ * - ::ffff:a.b.c.d 這類 IPv4-mapped 會自動對應到 IPv4 規則（已實測）
+ * - ::/96（IPv4 相容位址，已廢棄但仍可被利用）要明列
+ * - NAT64 的 64:ff9b::/96「不」整段封：在 IPv6-only＋DNS64 的主機上，
+ *   所有公網 IPv4 站點都會解析到這個範圍，整段封會打壞整個代理。
+ *   改為取出最後 32 bit 走 IPv4 規則（見 nat64ToIpv4）。
+ */
+export const BLOCKED_SUBNETS: Array<{
+  subnet: string;
+  prefix: number;
+  type: 'ipv4' | 'ipv6';
+  comment: string;
+}> = [
+  // IPv4
+  { subnet: '0.0.0.0', prefix: 8, type: 'ipv4', comment: '本機軟體範圍' },
+  { subnet: '10.0.0.0', prefix: 8, type: 'ipv4', comment: '私有網路' },
+  {
+    subnet: '100.64.0.0',
+    prefix: 10,
+    type: 'ipv4',
+    comment: '電信級 NAT 共用位址',
+  },
+  { subnet: '127.0.0.0', prefix: 8, type: 'ipv4', comment: '迴環' },
+  { subnet: '169.254.0.0', prefix: 16, type: 'ipv4', comment: '連結本地位址' },
+  { subnet: '172.16.0.0', prefix: 12, type: 'ipv4', comment: '私有網路' },
+  { subnet: '192.168.0.0', prefix: 16, type: 'ipv4', comment: '私有網路' },
+  { subnet: '198.18.0.0', prefix: 15, type: 'ipv4', comment: '基準測試用' },
+  // IPv6
+  { subnet: '::', prefix: 128, type: 'ipv6', comment: '未指定位址' },
+  { subnet: '::1', prefix: 128, type: 'ipv6', comment: '迴環' },
+  {
+    subnet: '::',
+    prefix: 96,
+    type: 'ipv6',
+    comment: 'IPv4 相容位址（已廢棄）',
+  },
+  { subnet: 'fc00::', prefix: 7, type: 'ipv6', comment: '唯一本地位址' },
+  { subnet: 'fe80::', prefix: 10, type: 'ipv6', comment: '連結本地位址' },
+  { subnet: 'ff00::', prefix: 8, type: 'ipv6', comment: '群播' },
 ];
+
+const blockedList = new BlockList();
+for (const rule of BLOCKED_SUBNETS) {
+  blockedList.addSubnet(rule.subnet, rule.prefix, rule.type);
+}
+
+/** 只裝 NAT64 前綴的檢查表，用來判斷是否需要拆出內嵌 IPv4 */
+const nat64List = new BlockList();
+nat64List.addSubnet('64:ff9b::', 96, 'ipv6');
+
+/** 把 IPv6 縮寫展開成 8 組完整 hex。失敗回 null。 */
+function expandIpv6(address: string): string[] | null {
+  const lower = address.toLowerCase();
+  // 內嵌 IPv4 dotted（::ffff:1.2.3.4 形式）先轉成兩組 hex
+  const withHex = lower.replace(
+    /:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/,
+    (_m: string, dotted: string) => {
+      const bytes = dotted.split('.').map(Number);
+      if (bytes.some((b) => !Number.isInteger(b) || b < 0 || b > 255)) {
+        return ':';
+      }
+      return `:${((bytes[0] << 8) | bytes[1]).toString(16)}:${((bytes[2] << 8) | bytes[3]).toString(16)}`;
+    }
+  );
+
+  const halves = withHex.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves[1] ? halves[1].split(':') : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 0) return null;
+  const groups = [...head, ...Array<string>(missing).fill('0'), ...tail];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) {
+    return null;
+  }
+  return groups;
+}
+
+/**
+ * NAT64 位址（64:ff9b::/96）最後 32 bit 是內嵌的 IPv4。
+ * 取出來走 IPv4 規則，而不是整段封掉。
+ */
+function nat64ToIpv4(address: string): string | null {
+  const expanded = expandIpv6(address);
+  if (!expanded) return null;
+  const high = Number.parseInt(expanded[6], 16);
+  const low = Number.parseInt(expanded[7], 16);
+  if (Number.isNaN(high) || Number.isNaN(low)) return null;
+  return [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff].join(
+    '.'
+  );
+}
+
+/**
+ * 判斷字面 IP 是否被封鎖。同步，可用於 parseSafeRemoteUrl 的預檢。
+ *
+ * localhost 是主機名不是 IP，BlockList 處理不了，保留字串判斷。
+ */
+export function isBlockedAddress(address: string): boolean {
+  const normalized = address.toLowerCase();
+  const ipType = isIP(normalized);
+  if (ipType === 0) {
+    return /^localhost$/i.test(normalized);
+  }
+
+  if (ipType === 6 && nat64List.check(normalized, 'ipv6')) {
+    const embedded = nat64ToIpv4(normalized);
+    // 拆不出內嵌 IPv4 就當可疑，直接擋掉
+    if (!embedded) return true;
+    return blockedList.check(embedded, 'ipv4');
+  }
+
+  return blockedList.check(normalized, ipType === 4 ? 'ipv4' : 'ipv6');
+}
 const DNS_SAFETY_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_DNS_SAFETY_CACHE_ENTRIES = 1000;
 const MAX_PINNED_AGENTS = 100;
@@ -102,62 +210,14 @@ function getNormalizedHostname(parsed: URL): string {
   return parsed.hostname.replace(/^\[|\]$/g, '');
 }
 
-function isPrivateIpv4(address: string): boolean {
-  const parts = address.split('.').map((part) => Number(part));
-  if (
-    parts.length !== 4 ||
-    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
-  ) {
-    return false;
-  }
-
-  const [a, b] = parts;
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19))
-  );
-}
-
+/**
+ * 解析後的位址是否被封鎖。
+ *
+ * 保留原函式名（呼叫點不變），實作改走 BlockList。
+ * 舊的手寫 isPrivateIpv4 已刪除，邏輯收斂到 isBlockedAddress。
+ */
 function isPrivateResolvedAddress(address: string): boolean {
-  const normalized = address.toLowerCase();
-  const ipType = isIP(normalized);
-
-  if (ipType === 4) {
-    return isPrivateIpv4(normalized);
-  }
-
-  if (ipType === 6) {
-    const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mappedIpv4) {
-      return isPrivateIpv4(mappedIpv4[1]);
-    }
-
-    const mappedHex = normalized.match(
-      /::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/
-    );
-    if (mappedHex) {
-      const high = Number.parseInt(mappedHex[1], 16);
-      const low = Number.parseInt(mappedHex[2], 16);
-      const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
-      return isPrivateIpv4(dotted);
-    }
-
-    return (
-      normalized === '::' ||
-      normalized === '::1' ||
-      normalized.startsWith('fc') ||
-      normalized.startsWith('fd') ||
-      /^fe[89ab][0-9a-f]:/i.test(normalized)
-    );
-  }
-
-  return false;
+  return isBlockedAddress(address);
 }
 
 type ResolvedAddress = { address: string; family: 4 | 6 };
@@ -281,7 +341,10 @@ export function parseSafeRemoteUrl(url: string): URL | null {
     }
 
     const hostname = getNormalizedHostname(parsed);
-    if (PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(hostname))) {
+    // 字面 IP（含 localhost 字串）在這裡先做同步預檢；
+    // 非 IP 主機名交給後續 DNS 解析後的檢查。
+    // isBlockedAddress 對一般主機名本來就回 false，所以直接呼叫即可。
+    if (isBlockedAddress(hostname)) {
       return null;
     }
 
