@@ -6,6 +6,20 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.6.7',
+    date: '2026-10-03',
+    content: `
+- 安全：SSRF 檢查改用 node:net BlockList，取代手寫 IP 正則；補上 0.0.0.0/8、100.64.0.0/10、198.18.0.0/15、IPv4 相容位址（::/96）的封鎖；NAT64 位址改取內嵌 IPv4 判斷，不再整段封鎖。
+- 安全：豆瓣搜尋與 Top250 路由改走 fetchSafeRemoteUrl，補上 DNS 重綁定防護。
+- 安全：m3u8 代理端點加使用者維度限流（600 次／分鐘），防範站台頻寬被當通用代理濫用。
+- 安全：升級 Next.js 到 16.3.8、undici 到 7.30.0，修補已知 CVE（含 Next.js RCE）。
+- 認證：proxy matcher 與 shouldSkipAuth 改用邊界精確比對，擋掉 /loginxxx 這類前綴冒充路徑。
+- 啟動檢查：新增 instrumentation，啟動時警告未設 TRUST_PROXY（IP 限流會退化）；STORAGE_TYPE 與 NEXT_PUBLIC_STORAGE_TYPE 不一致時警告（未來版本改為報錯）。
+- PWA：Service Worker 快取名稱跟著版本號走，發版後自動清除舊版快取。
+- 文件：README 截圖更新為深色版。
+    `.trim(),
+  },
+  {
     version: 'v3.6.6',
     date: '2026-10-02',
     content: `
