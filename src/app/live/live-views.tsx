@@ -105,7 +105,7 @@ export function UnsupportedTypeOverlay({ type }: { type: string }) {
               <span className='text-white font-bold'>{type.toUpperCase()}</span>
             </p>
             <p className='text-sm text-amber-100/80 mt-2'>
-              目前僅支援 M3U8 格式的直播流
+              目前僅支援 M3U8、MP4 格式的直播流
             </p>
           </div>
           <p className='text-sm text-zinc-300'>請嘗試其他頻道</p>

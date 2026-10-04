@@ -1014,8 +1014,8 @@ function LivePageClient() {
           type = precheckResult.type;
         }
 
-        // 如果不是 m3u8 類型，設定不支援的類型並返回
-        if (type !== 'm3u8') {
+        // 只支援 m3u8 和 mp4，其他類型顯示不支援
+        if (type !== 'm3u8' && type !== 'mp4') {
           setUnsupportedType(type);
           setIsVideoLoading(false);
           return;
@@ -1025,7 +1025,11 @@ function LivePageClient() {
         setUnsupportedType(null);
 
         const customType = { m3u8: m3u8Loader };
-        const targetUrl = `/api/proxy/m3u8?${liveProxyParams.toString()}`;
+        // mp4 用瀏覽器原生播放，直接用原始 URL；m3u8 走 proxy + hls.js
+        const targetUrl =
+          type === 'mp4'
+            ? videoUrl
+            : `/api/proxy/m3u8?${liveProxyParams.toString()}`;
         if (cancelled) return;
 
         // 銷燬之前的播放器實例並創建新的。只有目前預檢仍有效時才切換，
@@ -1073,8 +1077,8 @@ function LivePageClient() {
             crossOrigin: 'anonymous',
             preload: 'metadata',
           },
-          type: type,
-          customType: customType,
+          type: type === 'm3u8' ? 'm3u8' : undefined,
+          customType: type === 'm3u8' ? customType : undefined,
           icons: {
             loading:
               '<img aria-hidden="true" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCIgdmlld0JveD0iMCAwIDUwIDUwIj48cGF0aCBkPSJNMjUuMjUxIDYuNDYxYy0xMC4zMTggMC0xOC42ODMgOC4zNjUtMTguNjgzIDE4LjY4M2g0LjA2OGMwLTguMDcgNi41NDUtMTQuNjE1IDE0LjYxNS0xNC42MTVWNi40NjF6IiBmaWxsPSIjMDA5Njg4Ij48YW5pbWF0ZVRyYW5zZm9ybSBhdHRyaWJ1dGVOYW1lPSJ0cmFuc2Zvcm0iIGF0dHJpYnV0ZVR5cGU9IlhNTCIgZHVyPSIxcyIgZnJvbT0iMCAyNSAyNSIgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiIHRvPSIzNjAgMjUgMjUiIHR5cGU9InJvdGF0ZSIvPjwvcGF0aD48L3N2Zz4=">',
