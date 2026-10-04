@@ -6,7 +6,7 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
-    version: 'v3.6.10',
+    version: 'v3.7.0',
     date: '2026-10-04',
     content: `
 - 直播：IPTV 播放器新增支援 MP4 格式直播流（瀏覽器原生播放），之前只放行 M3U8。
