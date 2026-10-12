@@ -4,6 +4,7 @@ import { TextEncoder } from 'node:util';
 import {
   __resetSessionSecretWarningForTests,
   AUTH_SESSION_MAX_AGE_MS,
+  generateSignature as sign,
   getAuthInfoFromCookie,
   getAuthSessionSecret,
   getAuthSignaturePayload,
@@ -35,25 +36,6 @@ if (typeof globalThis.Request === 'undefined') {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).Request = MockRequest;
-}
-
-async function sign(payload: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  // node:util 的 TextEncoder 型別回傳 Uint8Array<ArrayBufferLike>，
-  // Web Crypto 要求 BufferSource（ArrayBuffer 底層），需明確標註
-  const encode = (text: string) =>
-    encoder.encode(text) as Uint8Array<ArrayBuffer>;
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, encode(payload));
-  return Array.from(new Uint8Array(signature))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
 }
 
 describe('getAuthSignaturePayload', () => {

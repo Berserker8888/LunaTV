@@ -231,28 +231,18 @@ export async function POST(request: NextRequest) {
                 { status: 403 }
               );
             }
-            if (await db.checkUserExist(targetUsername)) {
+            // 取得使用者群組資訊並於寫入資料庫前驗證：不存在的群組不能靜默接受，
+            // 也不可在驗證失敗前先寫入密碼鍵。
+            const { userGroup } = body as { userGroup?: unknown };
+            if (userGroup !== undefined && typeof userGroup !== 'string') {
               return NextResponse.json(
-                { error: '該使用者名已被使用' },
+                { error: '使用者群組參數格式不合法' },
                 { status: 400 }
               );
             }
-            await db.registerUser(targetUsername, targetPassword);
-
-            // 取得使用者群組資訊
-            const { userGroup } = body as { userGroup?: string };
-
-            // 更新設定。忽略 body.role，一律寫入一般使用者。
-            const newUser: any = {
-              username: targetUsername!,
-              role: 'user',
-            };
-
-            // 如果指定了使用者群組，新增到tags中
-            // 群組必須存在：不存在的群組會讓 tag 找不到對應設定，
-            // 反而掉到「全部可用源」的 fail-open，不能靜默接受
-            if (userGroup && userGroup.trim()) {
-              const groupName = userGroup.trim();
+            const groupName =
+              typeof userGroup === 'string' ? userGroup.trim() : '';
+            if (groupName) {
               const groupExists = (adminConfig.UserConfig.Tags || []).some(
                 (t) => t.name === groupName
               );
@@ -262,6 +252,22 @@ export async function POST(request: NextRequest) {
                   { status: 400 }
                 );
               }
+            }
+            if (await db.checkUserExist(targetUsername)) {
+              return NextResponse.json(
+                { error: '該使用者名已被使用' },
+                { status: 400 }
+              );
+            }
+            await db.registerUser(targetUsername, targetPassword);
+
+            // 更新設定。忽略 body.role，一律寫入一般使用者。
+            const newUser: any = {
+              username: targetUsername!,
+              role: 'user',
+            };
+
+            if (groupName) {
               newUser.tags = [groupName];
             }
 
@@ -448,15 +454,14 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // 權限檢查：站長可設定所有人的採集源，管理員可設定普通使用者和自己的採集源
+            // 權限檢查：僅站長可設定管理員（含管理員自己）的採集源，防止管理員自我解除片源限制
             if (
-              isTargetAdmin &&
               operatorRole !== 'owner' &&
-              username !== targetUsername
+              (isTargetAdmin || username === targetUsername)
             ) {
               return NextResponse.json(
-                { error: '僅站長可設定其他管理員的採集源' },
-                { status: 401 }
+                { error: '僅站長可設定管理員的採集源' },
+                { status: 403 }
               );
             }
 
@@ -586,16 +591,27 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // 權限檢查：站長可設定所有人的使用者群組，管理員可設定普通使用者和自己的使用者群組
+            // 權限檢查：僅站長可設定管理員（含管理員自己）的使用者群組
             if (
-              isTargetAdmin &&
               operatorRole !== 'owner' &&
-              username !== targetUsername
+              (isTargetAdmin || username === targetUsername)
             ) {
               return NextResponse.json(
-                { error: '僅站長可設定其他管理員的使用者群組' },
-                { status: 400 }
+                { error: '僅站長可設定管理員的使用者群組' },
+                { status: 403 }
               );
+            }
+
+            const existingTagNames = new Set(
+              (adminConfig.UserConfig.Tags || []).map((t) => t.name)
+            );
+            for (const groupName of userGroups) {
+              if (!existingTagNames.has(groupName)) {
+                return NextResponse.json(
+                  { error: `使用者群組「${groupName}」不存在` },
+                  { status: 400 }
+                );
+              }
             }
 
             // 更新使用者的使用者群組
@@ -627,7 +643,19 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // 權限檢查：站長可批量設定所有人的使用者群組，管理員只能批量設定普通使用者
+            const existingTagNames = new Set(
+              (adminConfig.UserConfig.Tags || []).map((t) => t.name)
+            );
+            for (const groupName of userGroups) {
+              if (!existingTagNames.has(groupName)) {
+                return NextResponse.json(
+                  { error: `使用者群組「${groupName}」不存在` },
+                  { status: 400 }
+                );
+              }
+            }
+
+            // 權限檢查：站長可批量設定所有人的使用者群組，管理員只能批量設定普通使用者（不含自己）
             if (operatorRole !== 'owner') {
               for (const name of usernames) {
                 if (name === process.env.USERNAME) {
@@ -639,7 +667,10 @@ export async function POST(request: NextRequest) {
                 const targetUser = adminConfig.UserConfig.Users.find(
                   (u) => u.username === name
                 );
-                if (targetUser && targetUser.role !== 'user') {
+                if (
+                  name === username ||
+                  (targetUser && targetUser.role !== 'user')
+                ) {
                   return NextResponse.json(
                     { error: '管理員只能管理一般使用者' },
                     { status: 403 }

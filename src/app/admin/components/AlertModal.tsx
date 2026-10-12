@@ -1,8 +1,9 @@
 import { AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { logger } from '@/lib/logger';
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
 
 import { buttonStyles } from './buttonStyles';
 import { AlertModalState } from './types';
@@ -15,6 +16,8 @@ export interface AlertModalProps {
   message?: string;
   timer?: number;
   showConfirm?: boolean;
+  confirmText?: string;
+  onConfirm?: () => void;
 }
 
 export const AlertModal = ({
@@ -25,8 +28,13 @@ export const AlertModal = ({
   message,
   timer,
   showConfirm = false,
+  confirmText = '確定',
+  onConfirm,
 }: AlertModalProps) => {
   const [isVisible, setIsVisible] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useAccessibleDialog(isOpen, dialogRef, onClose);
 
   // 關閉時立即重置動畫狀態（render 期調整）
   const [prevOpen, setPrevOpen] = useState(isOpen);
@@ -90,11 +98,17 @@ export const AlertModal = ({
       className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
+      onClick={onClose}
     >
       <div
-        className={`bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-sm w-full border ${getBgColor()} transition-all duration-200 ${
+        ref={dialogRef}
+        role='alertdialog'
+        aria-modal='true'
+        aria-label={title}
+        className={`bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-md w-full border ${getBgColor()} transition-all duration-200 ${
           isVisible ? 'scale-100' : 'scale-95'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className='p-6 text-center'>
           <div className='flex justify-center mb-4'>{getIcon()}</div>
@@ -104,16 +118,41 @@ export const AlertModal = ({
           </h3>
 
           {message && (
-            <p className='text-zinc-600 dark:text-zinc-400 mb-4'>{message}</p>
+            <p className='whitespace-pre-line text-zinc-600 dark:text-zinc-400 mb-4'>
+              {message}
+            </p>
           )}
 
-          {showConfirm && (
-            <button
-              onClick={onClose}
-              className={`px-4 py-2 text-sm font-medium ${buttonStyles.primary}`}
-            >
-              確定
-            </button>
+          {showConfirm && onConfirm ? (
+            <div className='flex justify-center space-x-3'>
+              <button
+                type='button'
+                onClick={onClose}
+                className={`px-4 py-2 text-sm font-medium ${buttonStyles.secondary}`}
+              >
+                取消
+              </button>
+              <button
+                type='button'
+                onClick={() => {
+                  onConfirm();
+                  onClose();
+                }}
+                className={`px-4 py-2 text-sm font-medium ${buttonStyles.primary}`}
+              >
+                {confirmText}
+              </button>
+            </div>
+          ) : (
+            (showConfirm || !timer) && (
+              <button
+                type='button'
+                onClick={onClose}
+                className={`px-4 py-2 text-sm font-medium ${buttonStyles.primary}`}
+              >
+                {confirmText}
+              </button>
+            )
           )}
         </div>
       </div>
@@ -123,14 +162,7 @@ export const AlertModal = ({
 };
 
 export const useAlertModal = () => {
-  const [alertModal, setAlertModal] = useState<{
-    isOpen: boolean;
-    type: 'success' | 'error' | 'warning';
-    title: string;
-    message?: string;
-    timer?: number;
-    showConfirm?: boolean;
-  }>({
+  const [alertModal, setAlertModal] = useState<AlertModalState>({
     isOpen: false,
     type: 'success',
     title: '',

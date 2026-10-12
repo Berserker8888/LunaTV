@@ -207,11 +207,11 @@ async function parseEpg(
   }[];
 }> {
   if (!epgUrl) {
-    return {};
+    return Object.create(null);
   }
 
   const tvgs = new Set(tvgIds);
-  const result: XmlTvPrograms = {};
+  const result: XmlTvPrograms = Object.create(null);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), EPG_FETCH_TIMEOUT_MS);
@@ -224,18 +224,20 @@ async function parseEpg(
       signal: controller.signal,
     });
     if (!response.ok) {
-      return {};
+      void response.body?.cancel().catch(() => undefined);
+      return Object.create(null);
     }
 
     const contentLength = Number(response.headers.get('content-length'));
     if (Number.isFinite(contentLength) && contentLength > MAX_EPG_BYTES) {
-      return {};
+      void response.body?.cancel().catch(() => undefined);
+      return Object.create(null);
     }
 
     // 使用 ReadableStream 逐行處理，避免將整個檔案載入記憶體
     const reader = response.body?.getReader();
     if (!reader) {
-      return {};
+      return Object.create(null);
     }
 
     const decoder = new TextDecoder();
@@ -252,7 +254,7 @@ async function parseEpg(
       totalBytes += value.byteLength;
       if (totalBytes > MAX_EPG_BYTES) {
         await reader.cancel().catch(() => undefined);
-        return {};
+        return Object.create(null);
       }
 
       buffer += decoder.decode(value, { stream: true });
@@ -434,23 +436,31 @@ function fallbackUrlResolve(baseUrl: string, relativePath: string) {
   // 處理不同類型的相對路徑
   if (relativePath.startsWith('/')) {
     // 絕對路徑 (/path/to/file)
-    const urlObj = new URL(base);
-    return `${urlObj.protocol}//${urlObj.host}${relativePath}`;
+    try {
+      const urlObj = new URL(base);
+      return `${urlObj.protocol}//${urlObj.host}${relativePath}`;
+    } catch {
+      return relativePath;
+    }
   } else if (relativePath.startsWith('../')) {
     // 上級目錄相對路徑 (../path/to/file)
-    const segments = base.split('/').filter((s) => s);
-    const relativeSegments = relativePath.split('/').filter((s) => s);
+    try {
+      const urlObj = new URL(base);
+      const segments = urlObj.pathname.split('/').filter((s) => s);
+      const relativeSegments = relativePath.split('/').filter((s) => s);
 
-    for (const segment of relativeSegments) {
-      if (segment === '..') {
-        segments.pop();
-      } else if (segment !== '.') {
-        segments.push(segment);
+      for (const segment of relativeSegments) {
+        if (segment === '..') {
+          segments.pop();
+        } else if (segment !== '.') {
+          segments.push(segment);
+        }
       }
-    }
 
-    const urlObj = new URL(base);
-    return `${urlObj.protocol}//${urlObj.host}/${segments.join('/')}`;
+      return `${urlObj.protocol}//${urlObj.host}/${segments.join('/')}`;
+    } catch {
+      return relativePath;
+    }
   } else {
     // 當前目錄相對路徑 (file.ts 或 ./file.ts)
     const cleanRelative = relativePath.startsWith('./')

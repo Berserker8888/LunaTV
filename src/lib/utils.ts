@@ -232,7 +232,7 @@ function pickBestM3u8Variant(m3u8Content: string): {
   return { width: bestWidth, bandwidth: bestBandwidth, uri: bestUri };
 }
 
-function formatLoadSpeed(bytes: number, durationMs: number): string {
+export function formatLoadSpeed(bytes: number, durationMs: number): string {
   if (bytes <= 0 || durationMs <= 0) return '未知';
   const kbps = bytes / 1024 / (durationMs / 1000);
   if (kbps >= 1024) return `${(kbps / 1024).toFixed(1)} MB/s`;

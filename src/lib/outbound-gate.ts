@@ -8,10 +8,6 @@ export function resetOutboundGateForTests(): void {
   waiters.splice(0, waiters.length);
 }
 
-export function getOutboundGateActiveForTests(): number {
-  return active;
-}
-
 function abortError(): DOMException {
   return new DOMException('Aborted', 'AbortError');
 }

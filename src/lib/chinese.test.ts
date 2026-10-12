@@ -133,8 +133,12 @@ describe('toSearchSimplified', () => {
 });
 
 describe('toDisplayLanguage', () => {
-  it('把陸源回傳的簡體詞彙轉為台灣用語', () => {
+  it('把陸源回傳的簡體詞彙轉為台灣用語，且不破壞劇組／幫助／訪問等影視自然詞彙', () => {
     expect(toDisplayLanguage('这是简体的缓存设置')).toBe('這是簡體的快取設定');
+    expect(toDisplayLanguage('剧组与节目组需要帮助并接受访问')).toBe(
+      '劇組與節目組需要幫助並接受訪問'
+    );
+    expect(toDisplayLanguage('重案组三人组')).toBe('重案組三人組');
   });
 
   it('🎬 前綴片源：前綴保留，後面名稱轉繁體／台灣用語', () => {

@@ -30,30 +30,21 @@ export function compareSearchYears(
   return order === 'asc' ? aNum - bNum : bNum - aNum;
 }
 
-/** 評分用查詢：使用者輸入 + regional 陸名（與比對層同一張表） */
-export function getSearchScoreQueries(userQuery: string): string[] {
+/** 評分用查詢：使用者輸入 + 重試解析出的陸名 + regional 陸名（與比對層同一張表） */
+export function getSearchScoreQueries(
+  userQuery: string,
+  resolvedQuery?: string
+): string[] {
   const query = userQuery.trim();
-  if (!query) return [];
-  return [query, ...getRegionalMainlandTitles(query)];
-}
-
-/**
- * 標題相關性比較（分數高者在前）。
- * titleOrder 控制同分時的字母序方向，與既有「依年份排序時的標題次序」一致。
- */
-export function compareSearchTitleRelevance(
-  aTitle: string,
-  bTitle: string,
-  scoreQueries: string[],
-  titleOrder: 'asc' | 'desc' = 'asc'
-): number {
-  const scoreDiff =
-    getBestTitleMatchScore(bTitle, scoreQueries) -
-    getBestTitleMatchScore(aTitle, scoreQueries);
-  if (scoreDiff !== 0) return scoreDiff;
-  return titleOrder === 'asc'
-    ? aTitle.localeCompare(bTitle)
-    : bTitle.localeCompare(aTitle);
+  const resolved = (resolvedQuery || '').trim();
+  const queries: string[] = [];
+  if (query) {
+    queries.push(query, ...getRegionalMainlandTitles(query));
+  }
+  if (resolved && resolved !== query) {
+    queries.push(resolved, ...getRegionalMainlandTitles(resolved));
+  }
+  return Array.from(new Set(queries));
 }
 
 /**
@@ -67,10 +58,11 @@ export function compareSearchTitleRelevance(
 export function sortSearchItems<T extends { title: string; year?: string }>(
   items: T[],
   userQuery: string,
-  yearOrder: SearchYearOrder
+  yearOrder: SearchYearOrder,
+  resolvedQuery?: string
 ): T[] {
   if (items.length <= 1) return items;
-  const scoreQueries = getSearchScoreQueries(userQuery);
+  const scoreQueries = getSearchScoreQueries(userQuery, resolvedQuery);
   const titleOrder: 'asc' | 'desc' = yearOrder === 'desc' ? 'desc' : 'asc';
 
   const itemScores = new Map<string, number>();

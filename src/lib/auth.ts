@@ -49,15 +49,46 @@ export function getAuthSignaturePayload(
   return `${subject}:${timestamp}:${sessionVersion}`;
 }
 
+// 生成簽名 (公用 HMAC-SHA-256)
+export async function generateSignature(
+  data: string,
+  secret: string
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret) as Uint8Array<ArrayBuffer>;
+  const messageData = encoder.encode(data) as Uint8Array<ArrayBuffer>;
+
+  // 匯入密鑰
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  // 生成簽名
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+
+  // 轉換為十六進位字串
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 // 驗證簽名 (公用 HMAC-SHA-256)
 export async function verifySignature(
   data: string,
   signature: string,
   secret: string
 ): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/i.test(signature)) {
+    return false;
+  }
+
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(data);
+  const keyData = encoder.encode(secret) as Uint8Array<ArrayBuffer>;
+  const messageData = encoder.encode(data) as Uint8Array<ArrayBuffer>;
 
   try {
     // 匯入金鑰
@@ -184,9 +215,13 @@ export function getAuthInfoFromBrowserCookie(): AuthInfo | null {
     // 處理可能的雙重編碼
     let decoded = decodeURIComponent(authCookie);
 
-    // 如果解碼後仍然包含 %，說明是雙重編碼，需要再次解碼
+    // 如果解碼後仍然包含 %，嘗試二次解碼；若只是值內含字面 %，則保留第一次解碼結果
     if (decoded.includes('%')) {
-      decoded = decodeURIComponent(decoded);
+      try {
+        decoded = decodeURIComponent(decoded);
+      } catch {
+        // ignore literal '%' in decoded JSON
+      }
     }
 
     const authData = JSON.parse(decoded);

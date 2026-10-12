@@ -10,6 +10,7 @@ import {
 } from '@/lib/config';
 import { db } from '@/lib/db';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
+import { invalidateSearchCache } from '@/lib/search-cache';
 import { getServerStorageType } from '@/lib/storage-runtime';
 
 export const runtime = 'nodejs';
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
       const adminConfig = refineConfig(nextConfig);
       await db.saveAdminConfig(adminConfig);
       setCachedConfig(adminConfig);
+      invalidateSearchCache();
     });
     return NextResponse.json({
       success: true,

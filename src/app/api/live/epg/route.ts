@@ -51,7 +51,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 從epgs字段中取得對應tvgId的節目單資訊
-    const epgData = channelData.epgs[tvgId] || [];
+    const epgData = Object.prototype.hasOwnProperty.call(
+      channelData.epgs,
+      tvgId
+    )
+      ? channelData.epgs[tvgId]
+      : [];
 
     return NextResponse.json({
       success: true,

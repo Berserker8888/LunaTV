@@ -105,21 +105,22 @@ export interface AdminUserContext extends ActiveUserContext {
 export async function requireAdmin(
   request: Request
 ): Promise<AdminUserContext | null> {
-  const active = await requireActiveUser(request);
-  if (!active) return null;
   if (getServerStorageType() === 'localstorage') return null;
 
-  if (active.username === process.env.USERNAME) {
-    return { ...active, role: 'owner' };
+  const auth = await getVerifiedAuthInfo(request);
+  if (!auth?.username) return null;
+
+  if (auth.username === process.env.USERNAME) {
+    return { username: auth.username, auth, role: 'owner' };
   }
 
   const config = await getConfig();
   const user = config.UserConfig.Users.find(
-    (entry) => entry.username === active.username
+    (entry) => entry.username === auth.username
   );
   if (!user || user.banned || user.role !== 'admin') return null;
 
-  return { ...active, role: 'admin' };
+  return { username: auth.username, auth, role: 'admin' };
 }
 
 /**

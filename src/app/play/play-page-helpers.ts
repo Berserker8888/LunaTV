@@ -699,12 +699,36 @@ export function mergeDetailPreservingPlayback(
   };
 }
 
+let inPlacePlaybackUrlKey: string | null = null;
+
 export function getPlayPageRemountKey(
   source: string,
   id: string,
   title: string
 ): string {
   return `${source}\t${id}\t${title}`;
+}
+
+export function markInPlacePlaybackUrl(href: string): void {
+  try {
+    const parsed = new URL(href, 'http://localhost');
+    const source = parsed.searchParams.get('source') ?? '';
+    const id = parsed.searchParams.get('id') ?? '';
+    const title = parsed.searchParams.get('title') ?? '';
+    inPlacePlaybackUrlKey = getPlayPageRemountKey(source, id, title);
+  } catch {
+    inPlacePlaybackUrlKey = null;
+  }
+}
+
+export function isInPlacePlaybackUrlKey(candidateKey: string): boolean {
+  return (
+    inPlacePlaybackUrlKey !== null && inPlacePlaybackUrlKey === candidateKey
+  );
+}
+
+export function clearInPlacePlaybackUrlKey(): void {
+  inPlacePlaybackUrlKey = null;
 }
 
 export function applyPlaybackUrlUpdates(
@@ -724,7 +748,9 @@ export function applyPlaybackUrlUpdates(
   for (const key of removeKeys) {
     nextUrl.searchParams.delete(key);
   }
-  return nextUrl.toString();
+  const result = nextUrl.toString();
+  markInPlacePlaybackUrl(result);
+  return result;
 }
 
 export function ensureVideoSource(

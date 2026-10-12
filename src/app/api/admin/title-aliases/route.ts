@@ -12,6 +12,7 @@ import {
   sanitizeTitleAlias,
 } from '@/lib/regional-title-aliases';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
+import { invalidateSearchCache } from '@/lib/search-cache';
 import { getServerStorageType } from '@/lib/storage-runtime';
 
 export const runtime = 'nodejs';
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
       adminConfig.TitleAliases = merged.aliases;
       await db.saveAdminConfig(adminConfig);
       setCachedConfig(adminConfig);
+      invalidateSearchCache();
       batchResult.aliases = merged.aliases;
       batchResult.added = merged.added;
       batchResult.updated = merged.updated;
@@ -143,6 +145,7 @@ export async function POST(request: NextRequest) {
     adminConfig.TitleAliases = current;
     await db.saveAdminConfig(adminConfig);
     setCachedConfig(adminConfig);
+    invalidateSearchCache();
     return null;
   });
   if (locked) return locked;
@@ -184,6 +187,7 @@ export async function DELETE(request: NextRequest) {
     );
     await db.saveAdminConfig(adminConfig);
     setCachedConfig(adminConfig);
+    invalidateSearchCache();
   });
 
   revalidatePath('/', 'layout');

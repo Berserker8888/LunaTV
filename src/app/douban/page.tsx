@@ -143,6 +143,7 @@ function DoubanPageClient() {
 
   useEffect(() => {
     const handleScroll = () => {
+      if (restoredDoubanScrollKeyRef.current !== doubanScrollKey) return;
       try {
         sessionStorage.setItem(doubanScrollKey, String(window.scrollY));
       } catch {
@@ -166,16 +167,6 @@ function DoubanPageClient() {
       // ignore
     }
   }, [loading, selectorsReady, doubanData.length, doubanScrollKey]);
-
-  // 初始化時標記選擇器為準備好狀態
-  useEffect(() => {
-    // 短暫延遲確保初始狀態設定完成
-    const timer = setTimeout(() => {
-      setSelectorsReady(true);
-    }, 50);
-
-    return () => clearTimeout(timer);
-  }, []); // 只在組件掛載時執行一次
 
   // type / customCategories 變化時重置選擇器（render 期調整狀態，
   // 取代原本兩個 setState-in-effect；50ms 後標記就緒的計時器留在 effect）。
@@ -877,7 +868,10 @@ function DoubanPageClient() {
               rowGapClass='pb-12 sm:pb-20'
               estimateRowHeight={320}
               renderItem={(item, index) => (
-                <div key={`${item.title}-${index}`} className='w-full'>
+                <div
+                  key={item.id || `${item.title}-${index}`}
+                  className='w-full'
+                >
                   <VideoCard
                     from='douban'
                     title={item.title}

@@ -150,7 +150,7 @@ export const ConfigFileComponent = ({
           <div className='text-sm text-zinc-500 dark:text-zinc-400 px-3 py-1.5 rounded-full'>
             最後更新:{' '}
             {lastCheckTime
-              ? new Date(lastCheckTime).toLocaleString('zh-CN')
+              ? new Date(lastCheckTime).toLocaleString('zh-TW')
               : '從未更新'}
           </div>
         </div>

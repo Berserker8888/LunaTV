@@ -16,6 +16,7 @@ import React, {
   useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -194,11 +195,15 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       return unsubscribe;
     }, [from, actualSource, actualId]);
 
+    const togglingFavoriteRef = useRef(false);
+
     const handleToggleFavorite = useCallback(
       async (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (from === 'douban' || !actualSource || !actualId) return;
+        if (togglingFavoriteRef.current) return;
+        togglingFavoriteRef.current = true;
 
         try {
           // 確定當前收藏狀態
@@ -234,6 +239,8 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
         } catch (err) {
           console.error('切換收藏狀態失敗', err);
           toast('切換收藏狀態失敗', 'error');
+        } finally {
+          togglingFavoriteRef.current = false;
         }
       },
       [
@@ -270,20 +277,17 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       [from, actualSource, actualId, onDelete]
     );
 
-    const handleClick = useCallback(() => {
+    const getTargetPlayUrl = useCallback((): string => {
       if (origin === 'live' && actualSource && actualId) {
         // 直播內容跳轉到直播頁面
         const params = new URLSearchParams({
           source: actualSource.replace('live_', ''),
           id: actualId.replace('live_', ''),
         });
-        const url = `/live?${params.toString()}`;
-        router.push(url);
-      } else if (
-        from === 'douban' ||
-        (isAggregate && !actualSource && !actualId)
-      ) {
-        const url = buildPlayUrl({
+        return `/live?${params.toString()}`;
+      }
+      if (from === 'douban' || (isAggregate && !actualSource && !actualId)) {
+        return buildPlayUrl({
           title: actualTitle,
           year: actualYear,
           stype: actualSearchType,
@@ -291,9 +295,9 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
           stitle: actualQuery,
           bgmId: isBangumi ? actualDoubanId : undefined,
         });
-        router.push(url);
-      } else if (actualSource && actualId) {
-        const url = buildPlayUrl({
+      }
+      if (actualSource && actualId) {
+        return buildPlayUrl({
           source: actualSource,
           id: actualId,
           title: actualTitle,
@@ -307,24 +311,20 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
               ? currentEpisode
               : undefined,
         });
-        router.push(url);
-      } else {
-        const url = buildPlayUrl({
-          title: actualTitle,
-          year: actualYear,
-          stype: actualSearchType,
-          prefer: true,
-          stitle: actualQuery,
-          bgmId: isBangumi ? actualDoubanId : undefined,
-        });
-        router.push(url);
       }
+      return buildPlayUrl({
+        title: actualTitle,
+        year: actualYear,
+        stype: actualSearchType,
+        prefer: true,
+        stitle: actualQuery,
+        bgmId: isBangumi ? actualDoubanId : undefined,
+      });
     }, [
       origin,
       from,
       actualSource,
       actualId,
-      router,
       actualTitle,
       actualYear,
       isAggregate,
@@ -334,6 +334,10 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
       actualDoubanId,
       currentEpisode,
     ]);
+
+    const handleClick = useCallback(() => {
+      router.push(getTargetPlayUrl());
+    }, [router, getTargetPlayUrl]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -347,68 +351,8 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
 
     // 新標籤頁播放處理函數
     const handlePlayInNewTab = useCallback(() => {
-      if (origin === 'live' && actualSource && actualId) {
-        // 直播內容跳轉到直播頁面
-        const params = new URLSearchParams({
-          source: actualSource.replace('live_', ''),
-          id: actualId.replace('live_', ''),
-        });
-        const url = `/live?${params.toString()}`;
-        window.open(url, '_blank');
-      } else if (
-        from === 'douban' ||
-        (isAggregate && !actualSource && !actualId)
-      ) {
-        const url = buildPlayUrl({
-          title: actualTitle,
-          year: actualYear,
-          stype: actualSearchType,
-          prefer: isAggregate,
-          stitle: actualQuery,
-          bgmId: isBangumi ? actualDoubanId : undefined,
-        });
-        window.open(url, '_blank');
-      } else if (actualSource && actualId) {
-        const url = buildPlayUrl({
-          source: actualSource,
-          id: actualId,
-          title: actualTitle,
-          year: actualYear,
-          prefer: isAggregate,
-          stitle: actualQuery,
-          stype: actualSearchType,
-          bgmId: isBangumi ? actualDoubanId : undefined,
-          episode:
-            from === 'playrecord' && currentEpisode && currentEpisode > 0
-              ? currentEpisode
-              : undefined,
-        });
-        window.open(url, '_blank');
-      } else {
-        const url = buildPlayUrl({
-          title: actualTitle,
-          year: actualYear,
-          stype: actualSearchType,
-          prefer: true,
-          stitle: actualQuery,
-          bgmId: isBangumi ? actualDoubanId : undefined,
-        });
-        window.open(url, '_blank');
-      }
-    }, [
-      origin,
-      from,
-      actualSource,
-      actualId,
-      actualTitle,
-      actualYear,
-      isAggregate,
-      actualQuery,
-      actualSearchType,
-      isBangumi,
-      actualDoubanId,
-      currentEpisode,
-    ]);
+      window.open(getTargetPlayUrl(), '_blank');
+    }, [getTargetPlayUrl]);
 
     // 檢查搜尋結果的收藏狀態
     const checkSearchFavoriteStatus = useCallback(async () => {

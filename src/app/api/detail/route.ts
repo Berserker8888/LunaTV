@@ -6,13 +6,14 @@ import {
   isValidApiSource,
 } from '@/lib/api-input-validation';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
-import { getAvailableApiSites } from '@/lib/config';
+import { getAvailableApiSites, getConfig } from '@/lib/config';
 import {
   DownstreamNotFoundError,
   DownstreamTimeoutError,
   DownstreamUpstreamError,
   getDetailFromApi,
 } from '@/lib/downstream';
+import { isYellowTypeName } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 const DETAIL_RATE_LIMIT = 180;
@@ -45,7 +46,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiSites = await getAvailableApiSites(username);
+    const [config, apiSites] = await Promise.all([
+      getConfig(),
+      getAvailableApiSites(username),
+    ]);
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {
@@ -53,6 +57,12 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await getDetailFromApi(apiSite, id);
+    if (
+      !config.SiteConfig.DisableYellowFilter &&
+      isYellowTypeName(result.type_name)
+    ) {
+      return NextResponse.json({ error: 'Media not found' }, { status: 404 });
+    }
 
     return NextResponse.json(result, {
       headers: {

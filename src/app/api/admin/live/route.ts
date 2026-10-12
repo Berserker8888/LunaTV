@@ -101,6 +101,28 @@ export async function POST(request: NextRequest) {
 
     let refreshedCount: number | undefined;
     if (action === 'add' || action === 'edit') {
+      const precheckConfig = await getFreshConfig();
+      const liveList = precheckConfig.LiveConfig || [];
+      if (action === 'add') {
+        if (liveList.some((l) => l.key === key)) {
+          return NextResponse.json(
+            { error: '直播源 key 已存在' },
+            { status: 400 }
+          );
+        }
+      } else {
+        const existingSource = liveList.find((l) => l.key === key);
+        if (!existingSource) {
+          return NextResponse.json({ error: '直播源不存在' }, { status: 404 });
+        }
+        if (existingSource.from === 'config') {
+          return NextResponse.json(
+            { error: '不能編輯設定檔中的直播源' },
+            { status: 400 }
+          );
+        }
+      }
+
       const probe = {
         key: String(key).trim(),
         name: String(name).trim(),

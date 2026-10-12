@@ -32,8 +32,3 @@ export function writeStreamingSearchPreference(
   storage.setItem(STREAMING_SEARCH_STORAGE_KEY, String(value));
   storage.removeItem(LEGACY_STREAMING_SEARCH_STORAGE_KEY);
 }
-
-export function clearStreamingSearchPreference(storage: WritableStorage) {
-  storage.removeItem(STREAMING_SEARCH_STORAGE_KEY);
-  storage.removeItem(LEGACY_STREAMING_SEARCH_STORAGE_KEY);
-}

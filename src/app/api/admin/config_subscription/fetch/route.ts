@@ -3,16 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireOwner } from '@/lib/api-auth';
 import { readJsonObject } from '@/lib/api-input-validation';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { fetchSubscriptionConfigFile } from '@/lib/config';
 import { rejectCrossSiteRequest } from '@/lib/same-site';
-import {
-  fetchSafeRemoteUrl,
-  parseSafeRemoteUrl,
-  readResponseTextWithLimit,
-} from '@/lib/url-safety';
+import { parseSafeRemoteUrl } from '@/lib/url-safety';
 
 export const runtime = 'nodejs';
-const CONFIG_FETCH_TIMEOUT_MS = 10_000;
-const CONFIG_FETCH_MAX_BYTES = 5 * 1024 * 1024;
 /** 站長手動抓訂閱；留餘裕重試 */
 const CONFIG_SUBSCRIPTION_FETCH_RATE_LIMIT = 30;
 const CONFIG_SUBSCRIPTION_FETCH_RATE_WINDOW_SECONDS = 60;
@@ -55,40 +50,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '無效的訂閱 URL' }, { status: 400 });
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      CONFIG_FETCH_TIMEOUT_MS
+    const decodedContent = await fetchSubscriptionConfigFile(
+      safeUrl.toString()
     );
-    let configContent: string;
-    try {
-      const response = await fetchSafeRemoteUrl(safeUrl.toString(), {
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: `請求失敗: ${response.status} ${response.statusText}` },
-          { status: response.status }
-        );
-      }
-      configContent = await readResponseTextWithLimit(
-        response,
-        CONFIG_FETCH_MAX_BYTES
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    // 對 configContent 進行 base58 解碼
-    let decodedContent;
-    try {
-      const bs58 = (await import('bs58')).default;
-      const decodedBytes = bs58.decode(configContent.trim());
-      decodedContent = new TextDecoder().decode(decodedBytes);
-    } catch (decodeError) {
-      console.warn('Base58 解碼失敗', decodeError);
-      throw decodeError;
-    }
 
     return NextResponse.json({
       success: true,

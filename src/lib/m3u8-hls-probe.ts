@@ -1,3 +1,5 @@
+import { formatLoadSpeed, getQualityFromWidth } from './utils';
+
 /**
  * 上游測速路徑：隱藏 video + hls.js。
  * fetch 播放清單被 CORS 擋住時，改走跟播放器相同的載入方式。
@@ -5,20 +7,7 @@
 const HLS_PROBE_TIMEOUT_MS = 4000;
 
 function qualityFromWidth(width: number): string {
-  if (width >= 3840) return '4K';
-  if (width >= 2560) return '2K';
-  if (width >= 1920) return '1080p';
-  if (width >= 1280) return '720p';
-  if (width >= 854) return '480p';
-  if (width > 0) return 'SD';
-  return '未知';
-}
-
-function formatLoadSpeed(bytes: number, durationMs: number): string {
-  if (bytes <= 0 || durationMs <= 0) return '未知';
-  const kbps = bytes / 1024 / (durationMs / 1000);
-  if (kbps >= 1024) return `${(kbps / 1024).toFixed(1)} MB/s`;
-  return `${kbps.toFixed(1)} KB/s`;
+  return getQualityFromWidth(width) || '未知';
 }
 
 export async function probeM3u8ByHls(

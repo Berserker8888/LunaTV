@@ -19,12 +19,13 @@ interface EpgScrollableRowProps {
 
 export default function EpgScrollableRow({
   programs,
-  currentTime = new Date(),
+  currentTime,
   isLoading = false,
 }: EpgScrollableRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState<number>(-1);
+  const currentTimeMs = currentTime?.getTime();
 
   // 處理滾輪事件，實現橫向滾動
   const handleWheel = (e: WheelEvent) => {
@@ -50,7 +51,10 @@ export default function EpgScrollableRow({
   };
 
   // 判斷節目是否正在播放（需宣告於使用之前）
-  const isCurrentlyPlaying = (program: EpgProgram, now: Date = currentTime) => {
+  const isCurrentlyPlaying = (
+    program: EpgProgram,
+    now: Date = currentTime ?? new Date()
+  ) => {
     try {
       const start = parseCustomTimeFormat(program.start);
       const end = parseCustomTimeFormat(program.end);
@@ -61,7 +65,7 @@ export default function EpgScrollableRow({
   };
 
   // 自動滾動到正在播放的節目
-  const scrollToCurrentProgram = (now: Date = currentTime) => {
+  const scrollToCurrentProgram = (now: Date = currentTime ?? new Date()) => {
     if (containerRef.current) {
       const currentProgramIndex = programs.findIndex((program) =>
         isCurrentlyPlaying(program, now)
@@ -123,7 +127,7 @@ export default function EpgScrollableRow({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [programs, currentTime]);
+  }, [programs, currentTimeMs]);
 
   // 定時重新整理正在播放狀態
   useEffect(() => {
@@ -149,7 +153,7 @@ export default function EpgScrollableRow({
     }, 60000); // 60秒 = 1分鐘
 
     return () => clearInterval(interval);
-  }, [programs, currentTime, currentPlayingIndex]);
+  }, [programs, currentTimeMs, currentPlayingIndex]);
 
   // 格式化時間顯示
   const formatTime = (timeString: string) => {

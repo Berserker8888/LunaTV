@@ -26,16 +26,6 @@ const WEAK_CORE_SEGMENTS = new Set([
   '\u8d24\u8005',
   '\u6700\u5f3a',
 ]);
-const MAINLAND_CHAR_FIXES: Record<string, string> = {
-  '\u5f37': '\u5f3a',
-  '\u8077': '\u804c',
-  '\u696d': '\u4e1a',
-  '\u8ce2': '\u8d24',
-  '\u6a23': '\u6837',
-  '\u9451': '\u9274',
-  '\u50de': '\u4f2a',
-  '\u507d': '\u4f2a',
-};
 const TRANSLATION_FALLBACK_MAX_QUERIES = 4;
 const TRANSLATION_SEASON_MARKER_PATTERN =
   /第[一二三四五六七八九十\d]+[季期部]|\b(?:season|part|s)\s*\d+\b/gi;
@@ -222,21 +212,12 @@ function getTitleSearchVariants(
 }
 
 function normalizeSourceQueryCandidate(title: string): string {
-  return normalizeMainlandChars(
-    convertT2S(toSearchSimplified(cleanQueryForApi(title || '')))
-  )
+  return toSearchSimplified(cleanQueryForApi(title || ''))
     .replace(/\bprat\s*(\d+)/gi, 'Part $1')
     .replace(/\bpt\s*(\d+)/gi, 'Part $1')
     .replace(TITLE_BRACKET_PATTERN, '')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function normalizeMainlandChars(title: string): string {
-  return title.replace(
-    /[\u5f37\u8077\u696d\u8ce2\u6a23\u9451\u50de\u507d]/g,
-    (char) => MAINLAND_CHAR_FIXES[char] || char
-  );
 }
 
 function getMainlandCoreTitleQueries(title?: string): string[] {

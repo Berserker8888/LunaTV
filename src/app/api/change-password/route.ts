@@ -14,6 +14,7 @@ import {
   revokeUserSessions,
 } from '@/lib/security-store';
 import { getServerStorageType } from '@/lib/storage-runtime';
+import { isWeakSitePassword } from '@/lib/weak-password';
 
 export const runtime = 'nodejs';
 
@@ -62,12 +63,20 @@ export async function POST(request: NextRequest) {
     if (!currentPassword || typeof currentPassword !== 'string') {
       return NextResponse.json({ error: '請輸入目前密碼' }, { status: 400 });
     }
-    if (
-      !newPassword ||
-      typeof newPassword !== 'string' ||
-      newPassword.length > 128
-    ) {
+    if (!newPassword || typeof newPassword !== 'string') {
       return NextResponse.json({ error: '新密碼不得為空' }, { status: 400 });
+    }
+    if (newPassword.length > 128) {
+      return NextResponse.json(
+        { error: '新密碼長度不能超過 128 個字元' },
+        { status: 400 }
+      );
+    }
+    if (isWeakSitePassword(newPassword)) {
+      return NextResponse.json(
+        { error: '新密碼強度不足，請勿使用預設或常見弱密碼' },
+        { status: 400 }
+      );
     }
 
     // 站長密碼只存在部署環境變數，線上改密不會生效

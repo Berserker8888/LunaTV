@@ -29,6 +29,109 @@ import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { CustomCategory } from './types';
 
+interface CategoryDraggableRowProps {
+  category: CustomCategory;
+  isLoading: (key: string) => boolean;
+  onToggleEnable: (query: string, type: 'movie' | 'tv') => void;
+  onDelete: (query: string, type: 'movie' | 'tv') => void;
+}
+
+const DraggableRow = ({
+  category,
+  isLoading,
+  onToggleEnable,
+  onDelete,
+}: CategoryDraggableRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: `${category.query}:${category.type}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  } as React.CSSProperties;
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
+    >
+      <td
+        className='px-2 py-4 cursor-grab text-zinc-400'
+        style={{ touchAction: 'none' }}
+        {...{ ...attributes, ...listeners }}
+      >
+        <GripVertical size={16} />
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        {category.name || '-'}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        <span
+          className={`px-2 py-1 text-xs rounded-full ${
+            category.type === 'movie'
+              ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
+              : 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300'
+          }`}
+        >
+          {category.type === 'movie' ? '電影' : '電視劇'}
+        </span>
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
+        title={category.query}
+      >
+        {category.query}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
+        <span
+          className={`px-2 py-1 text-xs rounded-full ${
+            !category.disabled
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+              : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+          }`}
+        >
+          {!category.disabled ? '啟用中' : '已禁用'}
+        </span>
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
+        <button
+          onClick={() => onToggleEnable(category.query, category.type)}
+          disabled={isLoading(
+            `toggleCategory_${category.query}_${category.type}`
+          )}
+          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+            !category.disabled
+              ? buttonStyles.roundedDanger
+              : buttonStyles.roundedSuccess
+          } transition-colors ${
+            isLoading(`toggleCategory_${category.query}_${category.type}`)
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+          }`}
+        >
+          {!category.disabled ? '禁用' : '啟用'}
+        </button>
+        {category.from !== 'config' && (
+          <button
+            onClick={() => onDelete(category.query, category.type)}
+            disabled={isLoading(
+              `deleteCategory_${category.query}_${category.type}`
+            )}
+            className={`${buttonStyles.roundedSecondary} ${
+              isLoading(`deleteCategory_${category.query}_${category.type}`)
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            刪除
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 export const CategoryConfig = ({
   config,
   refreshConfig,
@@ -178,98 +281,6 @@ export const CategoryConfig = ({
       });
   };
 
-  // 可拖拽行封裝 (dnd-kit)
-  const DraggableRow = ({ category }: { category: CustomCategory }) => {
-    const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: `${category.query}:${category.type}` });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    } as React.CSSProperties;
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
-      >
-        <td
-          className='px-2 py-4 cursor-grab text-zinc-400'
-          style={{ touchAction: 'none' }}
-          {...{ ...attributes, ...listeners }}
-        >
-          <GripVertical size={16} />
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          {category.name || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              category.type === 'movie'
-                ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
-                : 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300'
-            }`}
-          >
-            {category.type === 'movie' ? '電影' : '電視劇'}
-          </span>
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
-          title={category.query}
-        >
-          {category.query}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !category.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!category.disabled ? '啟用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-          <button
-            onClick={() => handleToggleEnable(category.query, category.type)}
-            disabled={isLoading(
-              `toggleCategory_${category.query}_${category.type}`
-            )}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !category.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleCategory_${category.query}_${category.type}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {!category.disabled ? '禁用' : '啟用'}
-          </button>
-          {category.from !== 'config' && (
-            <button
-              onClick={() => handleDelete(category.query, category.type)}
-              disabled={isLoading(
-                `deleteCategory_${category.query}_${category.type}`
-              )}
-              className={`${buttonStyles.roundedSecondary} ${
-                isLoading(`deleteCategory_${category.query}_${category.type}`)
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
-              }`}
-            >
-              刪除
-            </button>
-          )}
-        </td>
-      </tr>
-    );
-  };
-
   if (!config) {
     return (
       <div className='text-center text-zinc-500 dark:text-zinc-400'>
@@ -391,6 +402,9 @@ export const CategoryConfig = ({
                   <DraggableRow
                     key={`${category.query}:${category.type}`}
                     category={category}
+                    isLoading={isLoading}
+                    onToggleEnable={handleToggleEnable}
+                    onDelete={handleDelete}
                   />
                 ))}
               </tbody>

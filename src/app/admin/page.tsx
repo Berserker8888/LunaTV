@@ -9,6 +9,7 @@ import {
   Users,
   Video,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -183,12 +184,12 @@ function AdminPageClient() {
         <div className='max-w-[95%] mx-auto'>
           {role === 'owner' && (
             <div className='mb-4 flex justify-end'>
-              <a
+              <Link
                 href='/admin/health'
                 className='rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700'
               >
                 系統健康
-              </a>
+              </Link>
             </div>
           )}
           {/* 標題 + 重置設定按鈕 */}

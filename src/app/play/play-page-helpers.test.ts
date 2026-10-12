@@ -5,6 +5,7 @@ import {
   applyResumeToPlayer,
   clampEpisodeIndex,
   clampResumeTarget,
+  clearInPlacePlaybackUrlKey,
   DETAIL_CACHE_HARD_TTL,
   DETAIL_CACHE_KEY,
   DETAIL_CACHE_TTL,
@@ -17,6 +18,7 @@ import {
   getEpisodeUrl,
   getPlayPageRemountKey,
   getResumeSeekOutcome,
+  isInPlacePlaybackUrlKey,
   isResumeDurationReliable,
   mergeDetailPreservingPlayback,
   mergeFreshDetail,
@@ -429,6 +431,16 @@ describe('play page URL / remount helpers', () => {
     expect(parsed.searchParams.get('title')).toBe('新片名');
     expect(parsed.searchParams.get('id')).toBeNull();
     expect(parsed.searchParams.get('prefer')).toBeNull();
+    expect(
+      isInPlacePlaybackUrlKey(getPlayPageRemountKey('a', '', '新片名'))
+    ).toBe(true);
+    expect(
+      isInPlacePlaybackUrlKey(getPlayPageRemountKey('b', '2', '其他片名'))
+    ).toBe(false);
+    clearInPlacePlaybackUrlKey();
+    expect(
+      isInPlacePlaybackUrlKey(getPlayPageRemountKey('a', '', '新片名'))
+    ).toBe(false);
   });
 
   it('only late-seeks resume when the player has not started watching', () => {

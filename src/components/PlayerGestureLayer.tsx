@@ -218,43 +218,60 @@ export default function PlayerGestureLayer({
         }
       } else {
         // Tap detection
-        const tapX = changedTouch.clientX;
-        const tapY = changedTouch.clientY;
+        if (changedTouch) {
+          const tapX = changedTouch.clientX;
+          const tapY = changedTouch.clientY;
 
-        if (
-          lastTapPos.current &&
-          now - lastTapTime.current < 300 &&
-          Math.abs(tapX - lastTapPos.current.x) < 30 &&
-          Math.abs(tapY - lastTapPos.current.y) < 30
-        ) {
-          // Double tap
-          const containerWidth = container.clientWidth || window.innerWidth;
-          const isRightSide = tapX > containerWidth / 2;
+          if (
+            lastTapPos.current &&
+            now - lastTapTime.current < 300 &&
+            Math.abs(tapX - lastTapPos.current.x) < 30 &&
+            Math.abs(tapY - lastTapPos.current.y) < 30
+          ) {
+            // Double tap
+            const containerWidth = container.clientWidth || window.innerWidth;
+            const isRightSide = tapX > containerWidth / 2;
 
-          if (artRef.current) {
-            if (isRightSide) {
-              artRef.current.currentTime = Math.min(
-                (artRef.current.currentTime || 0) + 10,
-                artRef.current.duration || Infinity
-              );
-              showIndicator('seek', '+10s', 'right');
-              artRef.current.notice.show = '快進 +10s';
-            } else {
-              artRef.current.currentTime = Math.max(
-                (artRef.current.currentTime || 0) - 10,
-                0
-              );
-              showIndicator('seek', '-10s', 'left');
-              artRef.current.notice.show = '快退 -10s';
+            if (artRef.current) {
+              if (isRightSide) {
+                artRef.current.currentTime = Math.min(
+                  (artRef.current.currentTime || 0) + 10,
+                  artRef.current.duration || Infinity
+                );
+                showIndicator('seek', '+10s', 'right');
+                artRef.current.notice.show = '快進 +10s';
+              } else {
+                artRef.current.currentTime = Math.max(
+                  (artRef.current.currentTime || 0) - 10,
+                  0
+                );
+                showIndicator('seek', '-10s', 'left');
+                artRef.current.notice.show = '快退 -10s';
+              }
             }
+            lastTapTime.current = 0;
+          } else {
+            lastTapTime.current = now;
+            lastTapPos.current = { x: tapX, y: tapY };
           }
-          lastTapTime.current = 0;
-        } else {
-          lastTapTime.current = now;
-          lastTapPos.current = { x: tapX, y: tapY };
         }
       }
 
+      touchStartPos.current = null;
+      touchDirection.current = null;
+      accumulatedDelta.current = 0;
+      isGestureActive.current = false;
+    };
+
+    const handleTouchCancel = () => {
+      clearLongPressTimer();
+      if (isLongPressingRef.current) {
+        restorePlaybackRate();
+      }
+      if (indicatorTimeoutRef.current) {
+        clearTimeout(indicatorTimeoutRef.current);
+      }
+      setIndicator({ type: null, value: '' });
       touchStartPos.current = null;
       touchDirection.current = null;
       accumulatedDelta.current = 0;
@@ -268,7 +285,7 @@ export default function PlayerGestureLayer({
       passive: false,
     });
     container.addEventListener('touchend', handleTouchEnd, { passive: false });
-    container.addEventListener('touchcancel', handleTouchEnd, {
+    container.addEventListener('touchcancel', handleTouchCancel, {
       passive: false,
     });
 
@@ -278,7 +295,7 @@ export default function PlayerGestureLayer({
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
-      container.removeEventListener('touchcancel', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchCancel);
     };
   }, [artRef, containerRef]);
 

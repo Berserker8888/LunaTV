@@ -23,6 +23,7 @@ import {
   isSourceTripped,
   recordSourceFailure,
   recordSourceSuccess,
+  releaseSourceProbe,
 } from './source-circuit-breaker';
 
 interface ApiSearchItem {
@@ -75,17 +76,8 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
-function cancelResponseBody(response: Response): void {
-  void response.body?.cancel().catch(() => undefined);
-}
-
-/**
- * 搜尋／詳情結果必須保留 CMS 原文（含簡體片名與簡介）。
- * 繁簡與台譯只負責「找得到」，不得改寫使用者看到的上游標題。
- * 呼叫點留在 isFuzzyMatch 之後，方便日後若要加非標題欄位處理時不碰比對順序。
- */
-export function localizeSearchResult(result: SearchResult): SearchResult {
-  return result;
+async function cancelResponseBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
 }
 
 /** 上游標題的空白正規化：去首尾、把連續空白塌縮為單一半形空格 */
@@ -181,14 +173,10 @@ async function searchWithCache(
       : { results: [] };
   }
 
-  // 源級熔斷：連續逾時的死源在冷卻期內直接跳過，避免拖慢整體搜尋
-  if (isSourceTripped(apiSite.key)) {
-    return { results: [] };
-  }
-
-  // 呼叫端已經取消就別發請求。但一旦進到 deduplicateRequest，這個 fetch 就是
-  // 多個併發呼叫端共用的，絕不能再綁任何「單一呼叫端」的 signal——否則其中一位
-  // 使用者離開頁面時會連帶中止共用請求，其他人也一起拿到空結果。
+  // 呼叫端已經取消就別發請求，也別消耗 half-open 探測名額。
+  // 但一旦進到 deduplicateRequest，這個 fetch 就是多個併發呼叫端共用的，
+  // 絕不能再綁任何「單一呼叫端」的 signal——否則其中一位使用者離開頁面時會
+  // 連帶中止共用請求，其他人也一起拿到空結果。
   // 逾時由下方自己的 controller 負責，最多多跑 timeoutMs，結果還能進快取。
   if (parentSignal?.aborted) {
     return { results: [] };
@@ -196,8 +184,14 @@ async function searchWithCache(
 
   const cacheKey = `${apiSite.key}::${query}::${page}`;
   return deduplicateRequest(cacheKey, async () => {
+    // 源級熔斷：連續逾時的死源在冷卻期內直接跳過，避免拖慢整體搜尋
+    if (isSourceTripped(apiSite.key)) {
+      return { results: [] };
+    }
+
     const controller = new AbortController();
     let timedOut = false;
+    let settledBreaker = false;
     const timeoutId = setTimeout(() => {
       timedOut = true;
       controller.abort();
@@ -215,9 +209,11 @@ async function searchWithCache(
       // 的 probing 旗標永不清除、該片源會被永久跳過（只能重啟恢復）。
       // 錯誤狀態計為失敗，讓持續出錯的來源能正常進入熔斷退避。
       if (!response.ok) {
+        await cancelResponseBody(response);
         if (response.status === 403)
           setCachedSearchPage(apiSite.key, query, page, 'forbidden', []);
         recordSourceFailure(apiSite.key);
+        settledBreaker = true;
         return { results: [] };
       }
       const data = await readResponseJsonWithLimit<any>(
@@ -227,6 +223,7 @@ async function searchWithCache(
       // 2xx 且 JSON 合法才算成功（含空列表：來源存活、只是沒結果）。
       // 非法 JSON 會在下方被 catch 計為失敗。
       recordSourceSuccess(apiSite.key);
+      settledBreaker = true;
       if (
         !data ||
         !data.list ||
@@ -277,13 +274,18 @@ async function searchWithCache(
       if (timedOut && (error?.name === 'AbortError' || error?.code === 20)) {
         setCachedSearchPage(apiSite.key, query, page, 'timeout', []);
         recordSourceFailure(apiSite.key);
+        settledBreaker = true;
       } else if (error?.name !== 'AbortError') {
         // 連線失敗（DNS 解析失敗、拒絕連線等）也計入熔斷
         recordSourceFailure(apiSite.key);
+        settledBreaker = true;
       }
       return { results: [] };
     } finally {
       clearTimeout(timeoutId);
+      if (!settledBreaker) {
+        releaseSourceProbe?.(apiSite.key);
+      }
     }
   });
 }
@@ -354,7 +356,7 @@ export async function searchFromApi(
         const uniqueKey = `${result.source}_${result.id}`;
         if (!seenIds.has(uniqueKey)) {
           seenIds.add(uniqueKey);
-          results.push(localizeSearchResult(result));
+          results.push(result);
         }
       });
     }
@@ -459,7 +461,7 @@ async function fetchDetailFromApi(
       signal: controller.signal,
     });
     if (!response.ok) {
-      cancelResponseBody(response);
+      await cancelResponseBody(response);
       if (response.status === 404 || response.status === 410) {
         throw new DownstreamNotFoundError();
       }
@@ -488,7 +490,7 @@ async function fetchDetailFromApi(
       const matches = videoDetail.vod_content.match(M3U8_PATTERN) || [];
       episodes = matches.map((link: string) => link.replace(/^\$/, ''));
     }
-    return localizeSearchResult({
+    return {
       id: id.toString(),
       // 與搜尋路徑一致地正規化空白。兩條路徑對同一部片回傳不同空白的標題，
       // 會讓顯示、播放紀錄裡存的標題、以及依「標題完全相等」比對的客戶端
@@ -507,7 +509,7 @@ async function fetchDetailFromApi(
       desc: cleanHtmlTags(videoDetail.vod_content || ''),
       type_name: videoDetail.type_name,
       douban_id: videoDetail.vod_douban_id,
-    });
+    };
   } catch (error) {
     if (
       error instanceof DownstreamNotFoundError ||
@@ -541,7 +543,7 @@ async function handleSpecialSourceDetail(
       signal: controller.signal,
     });
     if (!response.ok) {
-      cancelResponseBody(response);
+      await cancelResponseBody(response);
       if (response.status === 404 || response.status === 410) {
         throw new DownstreamNotFoundError();
       }
@@ -587,7 +589,7 @@ async function handleSpecialSourceDetail(
       html.match(/>(\d{4})<\//)?.[1] ??
       html.match(/>(\d{4})</g)?.[0]?.match(/\d{4}/)?.[0];
     const yearText = yearMatch || 'unknown';
-    return localizeSearchResult({
+    return {
       id,
       title: titleText,
       poster: coverUrl,
@@ -601,7 +603,7 @@ async function handleSpecialSourceDetail(
       desc: descText,
       type_name: '',
       douban_id: 0,
-    });
+    };
   } catch (error) {
     if (
       error instanceof DownstreamNotFoundError ||

@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
 import { fetchVideoDetail, isExactVideoDetail } from '@/lib/fetchVideoDetail';
 import { refreshLiveChannels } from '@/lib/live';
 import { logger } from '@/lib/logger';
+import { invalidateSearchCache } from '@/lib/search-cache';
 import { parseStorageKey } from '@/lib/storage-key';
 import { SearchResult } from '@/lib/types';
 
@@ -272,6 +273,7 @@ async function refreshConfig() {
       const next = refineConfig(draft);
       await db.saveAdminConfig(next);
       await setCachedConfig(next);
+      invalidateSearchCache();
     });
   } catch (e) {
     console.error('重新整理設定失敗:', e);

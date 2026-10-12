@@ -4,6 +4,7 @@ export function parseChineseNumber(ch: string): number {
   const map: Record<string, number> = {
     一: 1,
     二: 2,
+    兩: 2,
     三: 3,
     四: 4,
     五: 5,

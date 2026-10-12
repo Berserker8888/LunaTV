@@ -57,7 +57,7 @@ async function fetchVersionFromUrl(url: string): Promise<string | null> {
       method: 'GET',
       signal: controller.signal,
       headers: {
-        'Content-Type': 'text/plain',
+        Accept: 'text/plain',
       },
     });
 
@@ -85,9 +85,13 @@ export function compareVersions(remoteVersion: string): UpdateStatus {
   const cleanCurrent = CURRENT_VERSION.startsWith('v')
     ? CURRENT_VERSION.substring(1)
     : CURRENT_VERSION;
-  const cleanRemote = remoteVersion.startsWith('v')
-    ? remoteVersion.substring(1)
-    : remoteVersion;
+  const cleanRemote = remoteVersion.trim().startsWith('v')
+    ? remoteVersion.trim().substring(1)
+    : remoteVersion.trim();
+
+  if (!/^\d+\.\d+\.\d+/.test(cleanRemote)) {
+    return UpdateStatus.FETCH_FAILED;
+  }
 
   if (cleanRemote === cleanCurrent) {
     return UpdateStatus.NO_UPDATE;
@@ -142,9 +146,6 @@ export function compareVersions(remoteVersion: string): UpdateStatus {
     return UpdateStatus.NO_UPDATE;
   } catch (error) {
     console.error('版本號比較失敗:', error);
-    // 如果版本號格式無效，回退到字符串比較
-    return remoteVersion !== CURRENT_VERSION
-      ? UpdateStatus.HAS_UPDATE
-      : UpdateStatus.NO_UPDATE;
+    return UpdateStatus.FETCH_FAILED;
   }
 }

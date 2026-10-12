@@ -6,8 +6,11 @@ import { AdminConfig } from '@/lib/admin.types';
 import { requireActiveUser } from '@/lib/api-auth';
 import { isValidApiSearchQuery } from '@/lib/api-input-validation';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
+import { createLinkedAbortController } from '@/lib/concurrency';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import { orderSourcesByHealth } from '@/lib/source-health';
+import { orderSourcesByValidation } from '@/lib/source-validation';
 import { splitTitleWords } from '@/lib/string-utils';
 import { isYellowTypeName } from '@/lib/yellow';
 
@@ -62,7 +65,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 生成建議
-    const suggestions = await generateSuggestions(config, query, username);
+    const suggestions = await generateSuggestions(
+      config,
+      query,
+      username,
+      request.signal
+    );
 
     return NextResponse.json(
       { suggestions },
@@ -82,7 +90,8 @@ export async function GET(request: NextRequest) {
 async function generateSuggestions(
   config: AdminConfig,
   query: string,
-  username: string
+  username: string,
+  parentSignal?: AbortSignal
 ): Promise<
   Array<{
     text: string;
@@ -92,17 +101,20 @@ async function generateSuggestions(
 > {
   const queryLower = query.toLowerCase();
   // production 查詢計畫：見 suggestion-queries.ts（測試 import 同一份）
-  const primaryQuery = getSuggestionPrimaryQuery(query);
-  const matchNeedles = getSuggestionMatchNeedles(query);
+  const primaryQuery = getSuggestionPrimaryQuery(query, config.TitleAliases);
+  const matchNeedles = getSuggestionMatchNeedles(query, config.TitleAliases);
   const useMainlandPrimary = primaryQuery !== query;
 
-  const apiSites = await getAvailableApiSites(username);
+  const rawSites = await getAvailableApiSites(username);
+  const apiSites = orderSourcesByHealth(orderSourcesByValidation(rawSites));
   let realKeywords: string[] = [];
 
   if (apiSites.length > 0) {
     const firstSite = apiSites[0];
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const { controller, cleanup } = createLinkedAbortController(
+      parentSignal,
+      3000
+    );
     let results;
     try {
       results = await searchFromApi(
@@ -112,7 +124,7 @@ async function generateSuggestions(
         controller.signal
       );
     } finally {
-      clearTimeout(timeoutId);
+      cleanup();
     }
 
     realKeywords = Array.from(
@@ -166,15 +178,5 @@ async function generateSuggestions(
     };
   });
 
-  // 按分數降序排列，相同分數按類型優先級排列
-  const sortedSuggestions = realSuggestions.sort((a, b) => {
-    if (a.score !== b.score) {
-      return b.score - a.score; // 分數高的在前
-    }
-    // 分數相同時，按類型優先級：exact > related > suggestion
-    const typePriority = { exact: 3, related: 2, suggestion: 1 };
-    return typePriority[b.type] - typePriority[a.type];
-  });
-
-  return sortedSuggestions;
+  return realSuggestions.sort((a, b) => b.score - a.score);
 }

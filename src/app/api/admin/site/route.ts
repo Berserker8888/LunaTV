@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
       SearchDownstreamMaxPage < 1 ||
       SearchDownstreamMaxPage > 20 ||
       typeof SiteInterfaceCacheTime !== 'number' ||
+      !Number.isFinite(SiteInterfaceCacheTime) ||
+      SiteInterfaceCacheTime < 0 ||
       typeof DoubanProxyType !== 'string' ||
       typeof DoubanProxy !== 'string' ||
       typeof DoubanImageProxyType !== 'string' ||

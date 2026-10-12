@@ -34,7 +34,7 @@ const customJestConfig = {
   testPathIgnorePatterns: ['<rootDir>/e2e/'],
   // ESM-only 套件需交給 babel 轉換；(\.pnpm\/)? 讓規則同時涵蓋 pnpm 巢狀路徑
   transformIgnorePatterns: [
-    '/node_modules/(?!(\\.pnpm/)?(switch-chinese|opencc-js|uncrypto))',
+    '/node_modules/(?!(\\.pnpm/)?(opencc-js|uncrypto))',
   ],
 
   /**
@@ -43,10 +43,8 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^~/(.*)$': '<rootDir>/public/$1',
+    '^opencc-js/cn2t$': '<rootDir>/node_modules/opencc-js/dist/umd/cn2t.js',
     '^opencc-js/t2cn$': '<rootDir>/node_modules/opencc-js/dist/umd/t2cn.js',
-    // switch-chinese 為 ESM-only 且 exports 只有 import 入口，
-    // jest 29 嚴格遵守 exports 會解析失敗，直接指向實體檔案
-    '^switch-chinese$': '<rootDir>/node_modules/switch-chinese/stcasc.lib.js',
   },
 };
 
@@ -54,7 +52,8 @@ const customJestConfig = {
 module.exports = async () => {
   const config = await createJestConfig(customJestConfig)();
   config.transformIgnorePatterns = [
-    '/node_modules/(?!(\\.pnpm/)?(switch-chinese|opencc-js|uncrypto))',
+    '/node_modules/(?!(\\.pnpm/)?(opencc-js|uncrypto))',
   ];
   return config;
 };
+

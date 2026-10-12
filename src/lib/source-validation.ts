@@ -1,5 +1,5 @@
 import { API_CONFIG, type ApiSite } from '@/lib/config';
-import { getDetailFromApi } from '@/lib/downstream';
+import { getDetailFromApi, parseVodPlayUrl } from '@/lib/downstream';
 import {
   fetchSafeRemoteUrl,
   isSafeRemoteUrl,
@@ -8,10 +8,6 @@ import {
 } from '@/lib/url-safety';
 
 import { setBoundedMapValue } from './bounded-map';
-import {
-  describeSourceValidation,
-  type SourceDisableSuggestion,
-} from './source-validation-status';
 
 /** 搜尋可達 / 詳情可解集數 / 抽樣 m3u8 可播 */
 export type SourceCheckLevel = 'search' | 'detail' | 'playable';
@@ -87,26 +83,6 @@ export function clearValidationResult(sourceKey?: string): void {
 
 export function isM3u8Link(url: string): boolean {
   return /\.m3u8($|\?)/i.test(url);
-}
-
-/** 從 CMS vod_play_url 抽出 m3u8 集數（與 downstream 規則對齊） */
-export function parseEpisodesFromVodPlayUrl(vodPlayUrl?: string): string[] {
-  if (!vodPlayUrl || typeof vodPlayUrl !== 'string') return [];
-
-  let best: string[] = [];
-  for (const group of vodPlayUrl.split('$$$')) {
-    const episodes: string[] = [];
-    for (const part of group.split('#')) {
-      const titleUrl = part.split('$');
-      if (titleUrl.length >= 2 && isM3u8Link(titleUrl[titleUrl.length - 1])) {
-        episodes.push(titleUrl[titleUrl.length - 1]);
-      } else if (titleUrl.length === 1 && isM3u8Link(titleUrl[0])) {
-        episodes.push(titleUrl[0]);
-      }
-    }
-    if (episodes.length > best.length) best = episodes;
-  }
-  return best;
 }
 
 function emptyLevels(
@@ -267,7 +243,7 @@ export async function validateSourceSite(
   }
 
   // L2：先吃搜尋結果內嵌 play url，不足再打 detail API
-  let episodes = parseEpisodesFromVodPlayUrl(
+  let { episodes } = parseVodPlayUrl(
     typeof matched.vod_play_url === 'string' ? matched.vod_play_url : undefined
   );
 
@@ -375,16 +351,4 @@ export function orderSourcesByValidation<T extends { key: string }>(
     }))
     .sort((a, b) => a.rank - b.rank || a.index - b.index)
     .map((entry) => entry.site);
-}
-
-/**
- * 給後台展示：是否建議人工檢查／停用（不自動執行）。
- *
- * 判讀規則放在 source-validation-status，管理端 client component 直接用
- * describeSourceValidation 讀 SSE 拿到的結果，兩邊同一份規則。
- */
-export function getSourceDisableSuggestion(
-  sourceKey: string
-): SourceDisableSuggestion | null {
-  return describeSourceValidation(getLastValidation(sourceKey));
 }

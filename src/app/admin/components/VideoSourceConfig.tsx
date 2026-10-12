@@ -38,6 +38,137 @@ import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { DataSource } from './types';
 
+interface ValidationStatusDisplay {
+  text: string;
+  className: string;
+  icon: string;
+  message: string;
+}
+
+const DraggableRow = ({
+  source,
+  isSelected,
+  validationStatus,
+  isLoading,
+  onSelectSource,
+  onToggleEnable,
+  onDelete,
+}: {
+  source: DataSource;
+  isSelected: boolean;
+  validationStatus: ValidationStatusDisplay | null;
+  isLoading: (key: string) => boolean;
+  onSelectSource: (key: string, checked: boolean) => void;
+  onToggleEnable: (key: string) => void;
+  onDelete: (key: string) => void;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: source.key });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  } as React.CSSProperties;
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
+    >
+      <td
+        className='px-2 py-4 cursor-grab text-zinc-400'
+        style={{ touchAction: 'none' }}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </td>
+      <td className='px-2 py-4 text-center'>
+        <input
+          type='checkbox'
+          checked={isSelected}
+          onChange={(e) => onSelectSource(source.key, e.target.checked)}
+          className='w-4 h-4 text-blue-600 bg-zinc-100 border-zinc-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600'
+        />
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        {source.name}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        {source.key}
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
+        title={source.api}
+      >
+        {source.api}
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
+        title={source.detail || '-'}
+      >
+        {source.detail || '-'}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
+        <span
+          className={`px-2 py-1 text-xs rounded-full ${
+            !source.disabled
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+              : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+          }`}
+        >
+          {!source.disabled ? '啟用中' : '已禁用'}
+        </span>
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
+        {!validationStatus ? (
+          <span className='px-2 py-1 text-xs rounded-full bg-zinc-100 dark:bg-zinc-900/20 text-zinc-600 dark:text-zinc-400'>
+            未檢測
+          </span>
+        ) : (
+          <span
+            className={`px-2 py-1 text-xs rounded-full ${validationStatus.className}`}
+            title={validationStatus.message}
+          >
+            {validationStatus.icon} {validationStatus.text}
+          </span>
+        )}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
+        <button
+          onClick={() => onToggleEnable(source.key)}
+          disabled={isLoading(`toggleSource_${source.key}`)}
+          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+            !source.disabled
+              ? buttonStyles.roundedDanger
+              : buttonStyles.roundedSuccess
+          } transition-colors ${
+            isLoading(`toggleSource_${source.key}`)
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+          }`}
+        >
+          {!source.disabled ? '禁用' : '啟用'}
+        </button>
+        {source.from !== 'config' && (
+          <button
+            onClick={() => onDelete(source.key)}
+            disabled={isLoading(`deleteSource_${source.key}`)}
+            className={`${buttonStyles.roundedSecondary} ${
+              isLoading(`deleteSource_${source.key}`)
+                ? 'opacity-50 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            刪除
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 export const VideoSourceConfig = ({
   config,
   refreshConfig,
@@ -606,121 +737,6 @@ export const VideoSourceConfig = ({
     }
   };
 
-  // 可拖拽行封裝 (dnd-kit)
-  const DraggableRow = ({ source }: { source: DataSource }) => {
-    const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: source.key });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    } as React.CSSProperties;
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
-      >
-        <td
-          className='px-2 py-4 cursor-grab text-zinc-400'
-          style={{ touchAction: 'none' }}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </td>
-        <td className='px-2 py-4 text-center'>
-          <input
-            type='checkbox'
-            checked={selectedSources.has(source.key)}
-            onChange={(e) => handleSelectSource(source.key, e.target.checked)}
-            className='w-4 h-4 text-blue-600 bg-zinc-100 border-zinc-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-800 focus:ring-2 dark:bg-zinc-700 dark:border-zinc-600'
-          />
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          {source.name}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          {source.key}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
-          title={source.api}
-        >
-          {source.api}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
-          title={source.detail || '-'}
-        >
-          {source.detail || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !source.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!source.disabled ? '啟用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
-          {(() => {
-            const status = getValidationStatus(source.key);
-            if (!status) {
-              return (
-                <span className='px-2 py-1 text-xs rounded-full bg-zinc-100 dark:bg-zinc-900/20 text-zinc-600 dark:text-zinc-400'>
-                  未檢測
-                </span>
-              );
-            }
-            return (
-              <span
-                className={`px-2 py-1 text-xs rounded-full ${status.className}`}
-                title={status.message}
-              >
-                {status.icon} {status.text}
-              </span>
-            );
-          })()}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-          <button
-            onClick={() => handleToggleEnable(source.key)}
-            disabled={isLoading(`toggleSource_${source.key}`)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !source.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleSource_${source.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {!source.disabled ? '禁用' : '啟用'}
-          </button>
-          {source.from !== 'config' && (
-            <button
-              onClick={() => handleDelete(source.key)}
-              disabled={isLoading(`deleteSource_${source.key}`)}
-              className={`${buttonStyles.roundedSecondary} ${
-                isLoading(`deleteSource_${source.key}`)
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
-              }`}
-            >
-              刪除
-            </button>
-          )}
-        </td>
-      </tr>
-    );
-  };
-
   // 全選/取消全選
   const handleSelectAll = useCallback(
     (checked: boolean) => {
@@ -1085,7 +1101,16 @@ export const VideoSourceConfig = ({
             >
               <tbody className='divide-y divide-zinc-200 dark:divide-zinc-700'>
                 {sources.map((source) => (
-                  <DraggableRow key={source.key} source={source} />
+                  <DraggableRow
+                    key={source.key}
+                    source={source}
+                    isSelected={selectedSources.has(source.key)}
+                    validationStatus={getValidationStatus(source.key)}
+                    isLoading={isLoading}
+                    onSelectSource={handleSelectSource}
+                    onToggleEnable={handleToggleEnable}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </tbody>
             </SortableContext>

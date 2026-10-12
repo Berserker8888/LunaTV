@@ -51,4 +51,6 @@ export interface AlertModalState {
   message?: string;
   timer?: number;
   showConfirm?: boolean;
+  confirmText?: string;
+  onConfirm?: () => void;
 }

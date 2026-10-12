@@ -33,6 +33,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(warningUrl);
   }
   if (isWeakSitePassword(process.env.PASSWORD)) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: '管理員密碼強度不足，請更換 PASSWORD 環境變數' },
+        { status: 503 }
+      );
+    }
     const warningUrl = new URL('/warning', request.url);
     warningUrl.searchParams.set('reason', 'weak');
     return NextResponse.redirect(warningUrl);

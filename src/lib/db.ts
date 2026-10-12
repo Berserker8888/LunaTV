@@ -216,6 +216,7 @@ export function generateStorageKey(source: string, id: string): string {
 // 匯出便捷方法
 export class DbManager {
   private storage: IStorage;
+  private migrated = false;
   private migrationPromise: Promise<void> | null = null;
   private playRecordMutationQueues = new Map<string, Promise<void>>();
   private favoriteMutationQueues = new Map<string, Promise<void>>();
@@ -226,7 +227,14 @@ export class DbManager {
     this.storage = storage;
     // 啟動時自動觸發資料遷移（非同步，不阻塞建構）
     if (this.storage && typeof this.storage.migrateData === 'function') {
-      this.migrationPromise = this.startMigration();
+      const initialMigration = this.startMigration();
+      initialMigration.catch((error) => {
+        if (this.migrationPromise === initialMigration) {
+          this.migrationPromise = null;
+        }
+        console.error('啟動時資料遷移異常:', error);
+      });
+      this.migrationPromise = initialMigration;
     }
   }
 
@@ -240,12 +248,17 @@ export class DbManager {
 
   /** 等待遷移完成。失敗會清掉 promise，讓下一次讀寫再試。 */
   private async ensureMigrated(): Promise<void> {
-    if (typeof this.storage.migrateData !== 'function') return;
+    if (this.migrated) return;
+    if (typeof this.storage.migrateData !== 'function') {
+      this.migrated = true;
+      return;
+    }
     if (!this.migrationPromise) {
       this.migrationPromise = this.startMigration();
     }
     try {
       await this.migrationPromise;
+      this.migrated = true;
       this.migrationPromise = null;
     } catch (error) {
       this.migrationPromise = null;
@@ -763,36 +776,44 @@ export class DbManager {
 
   // ---------- 使用者相關 ----------
   async registerUser(userName: string, password: string): Promise<void> {
+    await this.ensureMigrated();
     await this.storage.registerUser(userName, password);
   }
 
   async verifyUser(userName: string, password: string): Promise<boolean> {
+    await this.ensureMigrated();
     return this.storage.verifyUser(userName, password);
   }
 
   // 检查用户是否已存在
   async checkUserExist(userName: string): Promise<boolean> {
+    await this.ensureMigrated();
     return this.storage.checkUserExist(userName);
   }
 
   async changePassword(userName: string, newPassword: string): Promise<void> {
+    await this.ensureMigrated();
     await this.storage.changePassword(userName, newPassword);
   }
 
   async deleteUser(userName: string): Promise<void> {
+    await this.ensureMigrated();
     await this.storage.deleteUser(userName);
   }
 
   // ---------- 搜索历史 ----------
   async getSearchHistory(userName: string): Promise<string[]> {
+    await this.ensureMigrated();
     return this.storage.getSearchHistory(userName);
   }
 
   async addSearchHistory(userName: string, keyword: string): Promise<void> {
+    await this.ensureMigrated();
     await this.storage.addSearchHistory(userName, keyword);
   }
 
   async deleteSearchHistory(userName: string, keyword?: string): Promise<void> {
+    await this.ensureMigrated();
     await this.storage.deleteSearchHistory(userName, keyword);
   }
 

@@ -143,8 +143,8 @@ export function TagManagerModal({
 }
 
 export const TAG_COLORS: Record<string, string> = {
-  red: '#ff3e6c',
-  accent: '#ff3e6c',
+  red: '#ef4444',
+  accent: '#00B4D8',
   orange: '#f97316',
   yellow: '#eab308',
   green: '#22c55e',

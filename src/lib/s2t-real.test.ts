@@ -44,13 +44,9 @@ describe('繁簡轉換（真實函式庫，未套 mock）', () => {
     expect(convertS2T('')).toBe('');
   });
 
-  /**
-   * 迴/回 在繁體是兩個字，簡體才合併為「回」。函式庫不轉是可接受的，
-   * 因此 toSearchSimplified 另外保留了 迴→回 的替換。此處記錄這個已知
-   * 行為，若哪天函式庫改為會轉，這條會紅燈提醒可以移除那個替換。
-   */
-  it('已知不轉換：迴（由 toSearchSimplified 另行補上）', () => {
-    expect(convertT2S('輪迴')).toBe('轮迴');
+  it('台灣異體字與詞彙（OpenCC tw→cn 直接處理）：輪迴、鋼之鍊金術師', () => {
+    expect(convertT2S('輪迴')).toBe('轮回');
+    expect(convertT2S('鋼之鍊金術師')).toBe('钢之炼金术师');
   });
 
   it('已知不轉換：日文撃（由 toSearchSimplified 另行補上為击）', () => {

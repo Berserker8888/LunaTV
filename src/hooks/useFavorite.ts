@@ -35,7 +35,14 @@ export function useFavorite({
   searchTitle,
 }: UseFavoriteOptions) {
   const [favorited, setFavorited] = useState(false);
+  const currentKey = `${currentSource ?? ''}+${currentId ?? ''}`;
+  const [prevKey, setPrevKey] = useState(currentKey);
+  if (currentKey !== prevKey) {
+    setPrevKey(currentKey);
+    setFavorited(false);
+  }
   const favoriteMutationRef = useRef(0);
+  const togglingRef = useRef(false);
 
   // 每當 source 或 id 變化時檢查收藏狀態
   useEffect(() => {
@@ -76,6 +83,7 @@ export function useFavorite({
 
   // 切換收藏
   const handleToggleFavorite = async () => {
+    if (togglingRef.current) return;
     const source = currentSourceRef.current;
     const id = currentIdRef.current;
     const currentDetail = detailRef.current;
@@ -85,6 +93,7 @@ export function useFavorite({
     );
     if (!stableTitle || !currentDetail || !source || !id) return;
 
+    togglingRef.current = true;
     const mutationId = ++favoriteMutationRef.current;
     const canUpdateCurrentItem = () =>
       mutationId === favoriteMutationRef.current &&
@@ -113,6 +122,8 @@ export function useFavorite({
       }
     } catch (err) {
       logger.error('切換收藏失敗:', err);
+    } finally {
+      togglingRef.current = false;
     }
   };
 

@@ -43,11 +43,6 @@ function rememberPlayRecord(
 const REFRESH_MIN_INTERVAL_MS = 60_000;
 let lastRemoteRefreshAt = 0;
 
-/** 供測試重置節流狀態（模組層狀態會跨測試殘留）。 */
-export function __resetPlayRecordRefreshThrottle(): void {
-  lastRemoteRefreshAt = 0;
-}
-
 // ---- API ----
 /**
  * 讀取全部播放記錄。

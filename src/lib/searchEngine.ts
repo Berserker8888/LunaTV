@@ -10,9 +10,9 @@
 import {
   convertJapaneseParticlesForSearch,
   generateSearchVariants,
+  toSearchSimplified,
 } from './chinese';
 import { getRegionalMainlandTitles } from './regional-title-aliases';
-import { convertT2S } from './s2t';
 import { extractPart, extractSeason } from './titleParser';
 
 const SPECIAL_TITLE_KEYWORDS = [
@@ -140,7 +140,7 @@ function passesHybridCoverage(
  * 標準化文字：去空格、轉小寫、繁轉簡、日文助詞轉中文（用於比較）
  */
 function normalize(text: string): string {
-  const converted = convertT2S(
+  const converted = toSearchSimplified(
     text
       // NFKC：全形英數→半形（ＳＰＹ→SPY）、全形空白→半形空白、相容字元統一
       .normalize('NFKC')

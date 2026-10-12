@@ -1,164 +1,13 @@
 'use client';
 
-import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle,
-  Download,
-  FileCheck,
-  Lock,
-  Upload,
-} from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { AlertTriangle, Download, FileCheck, Lock, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+
+import { AlertModal, useAlertModal } from '@/app/admin/components/AlertModal';
 
 interface DataMigrationProps {
   onRefreshConfig?: () => Promise<unknown>;
 }
-
-interface AlertModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  type: 'success' | 'error' | 'warning';
-  title: string;
-  message?: string;
-  confirmText?: string;
-  onConfirm?: () => void;
-  showConfirm?: boolean;
-  timer?: number;
-}
-
-const AlertModal = ({
-  isOpen,
-  onClose,
-  type,
-  title,
-  message,
-  confirmText = '確定',
-  onConfirm,
-  showConfirm = false,
-  timer,
-}: AlertModalProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  // 控製動畫狀態
-  // 關閉時立即重置動畫狀態（render 期調整）
-  const [prevOpen, setPrevOpen] = useState(isOpen);
-  if (isOpen !== prevOpen) {
-    setPrevOpen(isOpen);
-    if (!isOpen) setIsVisible(false);
-  }
-
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let rafId: number | undefined;
-    if (isOpen) {
-      // rAF 延遲一幀開啟，讓 CSS 過場動畫生效
-      rafId = requestAnimationFrame(() => setIsVisible(true));
-      if (timer) {
-        timeoutId = setTimeout(() => {
-          onClose();
-        }, timer);
-      }
-    }
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-    };
-  }, [isOpen, timer, onClose]);
-
-  if (!isOpen) return null;
-
-  const getIcon = () => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className='w-12 h-12 text-green-500' />;
-      case 'error':
-        return <AlertCircle className='w-12 h-12 text-red-500' />;
-      case 'warning':
-        return <AlertTriangle className='w-12 h-12 text-yellow-500' />;
-      default:
-        return null;
-    }
-  };
-
-  const getBgColor = () => {
-    switch (type) {
-      case 'success':
-        return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
-      case 'error':
-        return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-      case 'warning':
-        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
-      default:
-        return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
-    }
-  };
-
-  return createPortal(
-    <div
-      className={`fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
-      onClick={onClose}
-    >
-      <div
-        className={`bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-md w-full border ${getBgColor()} transition-all duration-200 ${
-          isVisible ? 'scale-100' : 'scale-95'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className='p-6 text-center'>
-          <div className='flex justify-center mb-4'>{getIcon()}</div>
-
-          <h3 className='text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2'>
-            {title}
-          </h3>
-
-          {message && (
-            <p className='text-left whitespace-pre-line text-zinc-600 dark:text-zinc-400 mb-4'>
-              {message}
-            </p>
-          )}
-
-          <div className='flex justify-center space-x-3'>
-            {showConfirm && onConfirm ? (
-              <>
-                <button
-                  onClick={onClose}
-                  className='px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 rounded-lg transition-colors'
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-                    onConfirm();
-                    onClose();
-                  }}
-                  className='px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors'
-                >
-                  {confirmText}
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={onClose}
-                className='px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors'
-              >
-                確定
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
 
 const DataMigration = ({ onRefreshConfig }: DataMigrationProps) => {
   const [exportPassword, setExportPassword] = useState('');
@@ -166,29 +15,8 @@ const DataMigration = ({ onRefreshConfig }: DataMigrationProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [alertModal, setAlertModal] = useState<{
-    isOpen: boolean;
-    type: 'success' | 'error' | 'warning';
-    title: string;
-    message?: string;
-    confirmText?: string;
-    onConfirm?: () => void;
-    showConfirm?: boolean;
-    timer?: number;
-  }>({
-    isOpen: false,
-    type: 'success',
-    title: '',
-  });
+  const { alertModal, showAlert, hideAlert } = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const showAlert = (config: Omit<typeof alertModal, 'isOpen'>) => {
-    setAlertModal({ ...config, isOpen: true });
-  };
-
-  const hideAlert = () => {
-    setAlertModal((prev) => ({ ...prev, isOpen: false }));
-  };
 
   // 匯出資料
   const handleExport = async () => {

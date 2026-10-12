@@ -92,8 +92,8 @@ exports[`generateSearchVariants golden test 日文假名：ほっかいどうぶ
 exports[`generateSearchVariants golden test 空白＋季數合併：鋼之鍊金術師 第一季 1`] = `
 [
   "鋼之鍊金術師 第一季",
-  "钢之链金术师 第一季",
-  "钢之链金术师第一季",
+  "钢之炼金术师 第一季",
+  "钢之炼金术师第一季",
   "鋼之鍊金術師1",
   "鋼之鍊金術師第一季",
 ]

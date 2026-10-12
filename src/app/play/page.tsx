@@ -92,6 +92,7 @@ import {
   applyPlaybackUrlUpdates,
   applyResumeToPlayer,
   clearCachedDetail,
+  clearInPlacePlaybackUrlKey,
   DEFAULT_SKIP_CONFIG,
   ensureVideoSource,
   formatEpisodeBadge,
@@ -99,6 +100,7 @@ import {
   getCachedDetail,
   getClientStorageType,
   getPlayPageRemountKey,
+  isInPlacePlaybackUrlKey,
   mergeDetailPreservingPlayback,
   mergeFreshDetail,
   migrateDetailCache,
@@ -189,9 +191,6 @@ function PlayPageClient() {
 
   // 快捷鍵幫助面板
   const [showShortcuts, setShowShortcuts] = useState(false);
-
-  // 子母畫面狀態
-  const [, setIsPiP] = useState(false);
 
   // 去廣告開關（從 localStorage 繼承，預設 true）
   const [blockAdEnabled, setBlockAdEnabled] = useState<boolean>(() => {
@@ -518,6 +517,7 @@ function PlayPageClient() {
     (resetCountdownUi = true) => {
       lastLoadedVideoUrlRef.current = '';
       playbackStartedRef.current = false;
+      clearResumeTimers();
       if (playbackWatchdogRef.current) {
         clearTimeout(playbackWatchdogRef.current);
         playbackWatchdogRef.current = null;
@@ -1881,32 +1881,7 @@ function PlayPageClient() {
 
     logger.debug('影片地址已解析');
 
-    // 檢測是否為WebKit瀏覽器
-    const isWebkit =
-      typeof window !== 'undefined' &&
-      typeof window.webkitConvertPointFromNodeToPage === 'function';
-
-    // 非WebKit瀏覽器且播放器已存在，使用 switch 方法切換
-    if (!isWebkit && artPlayerRef.current) {
-      // v1.5.3: 直接 switch 不會重建 HLS，改用重建方式確保畫面正常
-      const oldVideo = artPlayerRef.current.video;
-      if (oldVideo && oldVideo.hls) {
-        try {
-          oldVideo.hls.destroy();
-        } catch (err) {
-          logger.warn('銷毀舊 hls 出錯:', err);
-        }
-      }
-      try {
-        artPlayerRef.current.destroy();
-      } catch (err) {
-        logger.warn('銷毀舊播放器出錯:', err);
-      }
-      artPlayerRef.current = null;
-      // 跌入下方的重建邏輯
-    }
-
-    // WebKit瀏覽器或首次創建：銷燬之前的播放器實例並創建新的
+    // 銷燬之前的播放器實例並創建新的
     if (artPlayerRef.current) {
       cleanupPlayer();
     }
@@ -2137,16 +2112,10 @@ function PlayPageClient() {
               const newVal = !blockAdEnabled;
               try {
                 localStorage.setItem('enable_blockad', String(newVal));
-                if (artPlayerRef.current) {
-                  resumeTimeRef.current = artPlayerRef.current.currentTime;
-                  if (
-                    artPlayerRef.current.video &&
-                    artPlayerRef.current.video.hls
-                  ) {
-                    artPlayerRef.current.video.hls.destroy();
-                  }
-                  artPlayerRef.current.destroy();
-                  artPlayerRef.current = null;
+                const currentTime = artPlayerRef.current?.currentTime ?? 0;
+                cleanupPlayer();
+                if (currentTime > 0) {
+                  resumeTimeRef.current = currentTime;
                 }
                 setBlockAdEnabled(newVal);
               } catch (_) {
@@ -2474,14 +2443,6 @@ function PlayPageClient() {
           // ignore quota errors
         }
       });
-      const onPiPChange = () => {
-        setIsPiP(!!document.pictureInPictureElement);
-      };
-      const pipVideoEl = artPlayerRef.current?.video;
-      if (pipVideoEl) {
-        pipVideoEl.addEventListener('enterpictureinpicture', onPiPChange);
-        pipVideoEl.addEventListener('leavepictureinpicture', onPiPChange);
-      }
 
       const tryApplyResumeTime = () => {
         const player = artPlayerRef.current;
@@ -2782,13 +2743,11 @@ function PlayPageClient() {
         try {
           if (document.pictureInPictureElement) {
             await document.exitPictureInPicture();
-            setIsPiP(false);
           } else if (artPlayerRef.current?.video) {
             await artPlayerRef.current.video.requestPictureInPicture();
-            setIsPiP(true);
           }
         } catch {
-          setIsPiP(false);
+          // ignore PiP errors
         }
       })();
     };
@@ -3038,50 +2997,52 @@ function PlayPageClient() {
             {/* 選集和換源 - 在移動端始終顯示，在 lg 及以上可摺疊 */}
             <div
               id='play-source-panel'
-              className={`h-[300px] lg:h-full md:overflow-hidden transition-all duration-300 ease-in-out ${
+              className={`h-[300px] lg:h-full md:overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
                 isEpisodeSelectorCollapsed
                   ? 'md:col-span-1 lg:hidden lg:opacity-0 lg:scale-95'
                   : 'md:col-span-1 lg:opacity-100 lg:scale-100'
               }`}
             >
-              <EpisodeSelector
-                totalEpisodes={totalEpisodes}
-                episodes_titles={detail?.episodes_titles || []}
-                value={currentEpisodeIndex + 1}
-                onChange={handleEpisodeChange}
-                onSourceChange={handleSourceChange}
-                currentSource={currentSource}
-                currentId={currentId}
-                videoTitle={searchTitle || videoTitle}
-                availableSources={availableSources}
-                sourceSearchLoading={sourceSearchLoading}
-                sourceSearchError={sourceSearchError}
-                precomputedVideoInfo={precomputedVideoInfo}
-                preferSourcesTab={Boolean(playbackSoftError)}
-                videoPoster={videoCover}
-                onSourceHydrated={(hydrated) => {
-                  setAvailableSources((prev) =>
-                    prev.map((item) =>
-                      String(item.source) === String(hydrated.source) &&
-                      String(item.id) === String(hydrated.id)
-                        ? hydrated
-                        : item
-                    )
-                  );
-                  setCachedDetail(hydrated.source, hydrated.id, hydrated);
-                  if (
-                    String(hydrated.source) ===
-                      String(currentSourceRef.current) &&
-                    String(hydrated.id) === String(currentIdRef.current) &&
-                    hydrated.episodes?.length
-                  ) {
-                    setDetail(hydrated);
-                    detailRef.current = hydrated;
-                  }
-                }}
-              />
+              <div className='flex-1 min-h-0 overflow-hidden'>
+                <EpisodeSelector
+                  totalEpisodes={totalEpisodes}
+                  episodes_titles={detail?.episodes_titles || []}
+                  value={currentEpisodeIndex + 1}
+                  onChange={handleEpisodeChange}
+                  onSourceChange={handleSourceChange}
+                  currentSource={currentSource}
+                  currentId={currentId}
+                  videoTitle={searchTitle || videoTitle}
+                  availableSources={availableSources}
+                  sourceSearchLoading={sourceSearchLoading}
+                  sourceSearchError={sourceSearchError}
+                  precomputedVideoInfo={precomputedVideoInfo}
+                  preferSourcesTab={Boolean(playbackSoftError)}
+                  videoPoster={videoCover}
+                  onSourceHydrated={(hydrated) => {
+                    setAvailableSources((prev) =>
+                      prev.map((item) =>
+                        String(item.source) === String(hydrated.source) &&
+                        String(item.id) === String(hydrated.id)
+                          ? hydrated
+                          : item
+                      )
+                    );
+                    setCachedDetail(hydrated.source, hydrated.id, hydrated);
+                    if (
+                      String(hydrated.source) ===
+                        String(currentSourceRef.current) &&
+                      String(hydrated.id) === String(currentIdRef.current) &&
+                      hydrated.episodes?.length
+                    ) {
+                      setDetail(hydrated);
+                      detailRef.current = hydrated;
+                    }
+                  }}
+                />
+              </div>
               {/* 自動連播 + 快捷鍵幫助 */}
-              <div className='flex items-center gap-3 px-3 py-2.5 mt-2 bg-black/40 dark:bg-white/5 rounded-lg border border-white/5'>
+              <div className='flex items-center gap-3 px-3 py-2.5 mt-2 shrink-0 bg-black/40 dark:bg-white/5 rounded-lg border border-white/5'>
                 {totalEpisodes > 0 &&
                   currentEpisodeIndex >= totalEpisodes - 1 && (
                     <button
@@ -3156,7 +3117,25 @@ function PlayPageKeyed() {
   const source = searchParams.get('source') ?? '';
   const id = searchParams.get('id') ?? '';
   const title = searchParams.get('title') ?? '';
-  return <PlayPageClient key={getPlayPageRemountKey(source, id, title)} />;
+  const rawKey = getPlayPageRemountKey(source, id, title);
+  const [session, setSession] = useState({
+    knownRawKey: rawKey,
+    mountId: 0,
+  });
+
+  if (rawKey !== session.knownRawKey) {
+    const isInPlace = isInPlacePlaybackUrlKey(rawKey);
+    setSession({
+      knownRawKey: rawKey,
+      mountId: isInPlace ? session.mountId : session.mountId + 1,
+    });
+  }
+
+  useEffect(() => {
+    clearInPlacePlaybackUrlKey();
+  }, [session.knownRawKey]);
+
+  return <PlayPageClient key={`play-${session.mountId}`} />;
 }
 
 export default function PlayPage() {

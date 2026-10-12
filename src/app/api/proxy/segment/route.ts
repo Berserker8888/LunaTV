@@ -12,37 +12,55 @@ const MAX_SEGMENT_BYTES = 50 * 1024 * 1024;
 
 function rejectOversizedOrLimitBody(
   response: Response,
-  maxBytes: number
+  maxBytes: number,
+  onSettle?: () => void
 ): Response {
   const contentLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    onSettle?.();
     void response.body?.cancel();
     throw new RemoteResponseTooLargeError(maxBytes);
   }
 
   if (!response.body) {
+    onSettle?.();
     return response;
   }
 
   // 即使有 Content-Length 也要計數：上游可能謊報長度後繼續串流。
   let total = 0;
+  let settled = false;
+  const finish = () => {
+    if (!settled) {
+      settled = true;
+      onSettle?.();
+    }
+  };
   const reader = response.body.getReader();
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { done, value } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          finish();
+          controller.close();
+          return;
+        }
+        total += value.byteLength;
+        if (total > maxBytes) {
+          finish();
+          await reader.cancel();
+          controller.error(new RemoteResponseTooLargeError(maxBytes));
+          return;
+        }
+        controller.enqueue(value);
+      } catch (err) {
+        finish();
+        throw err;
       }
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        controller.error(new RemoteResponseTooLargeError(maxBytes));
-        return;
-      }
-      controller.enqueue(value);
     },
     cancel(reason) {
+      finish();
       return reader.cancel(reason);
     },
   });
@@ -79,14 +97,24 @@ export async function GET(request: Request) {
       headers: upstreamHeaders,
       signal: controller.signal,
     });
-    if (!response.ok && (response.status < 400 || response.status >= 500)) {
+    if (!response.ok) {
       return NextResponse.json(
         { error: 'Failed to fetch segment' },
-        { status: 500 }
+        {
+          status:
+            response.status >= 400 && response.status < 500
+              ? response.status
+              : 500,
+          headers: { 'Cache-Control': 'no-store' },
+        }
       );
     }
 
-    const limited = rejectOversizedOrLimitBody(response, MAX_SEGMENT_BYTES);
+    const limited = rejectOversizedOrLimitBody(
+      response,
+      MAX_SEGMENT_BYTES,
+      () => clearTimeout(timeoutId)
+    );
     response = limited;
 
     const headers = new Headers();
@@ -142,9 +170,11 @@ export async function GET(request: Request) {
       { status: controller.signal.aborted ? 504 : 500 }
     );
   } finally {
-    clearTimeout(timeoutId);
-    if (response && !responseUsed) {
-      void response.body?.cancel().catch(() => undefined);
+    if (!responseUsed) {
+      clearTimeout(timeoutId);
+      if (response) {
+        void response.body?.cancel().catch(() => undefined);
+      }
     }
   }
 }

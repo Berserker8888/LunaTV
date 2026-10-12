@@ -1,8 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 
+import { readJsonObject } from '@/lib/api-input-validation';
 import { getClientIp } from '@/lib/api-rate-limit';
-import { getAuthSessionSecret, getAuthSignaturePayload } from '@/lib/auth';
+import {
+  generateSignature,
+  getAuthSessionSecret,
+  getAuthSignaturePayload,
+} from '@/lib/auth';
 import {
   getAuthCookieOptions,
   getUserInfoCookieOptions,
@@ -22,9 +27,6 @@ export const runtime = 'nodejs';
 // 登入限制會優先使用已設定的 Redis / Kvrocks / Upstash，否則退回單機記憶體。
 const LOGIN_RATE_LIMIT_MAX = 5; // 失敗次數上限
 const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 鎖定 15 分鐘
-
-// 讀取儲存類型環境變量，預設 localstorage
-const STORAGE_TYPE = getServerStorageType();
 
 async function checkLoginRateLimit(
   identities: string[]
@@ -54,46 +56,12 @@ async function clearLoginRateLimits(identities: string[]): Promise<void> {
   await Promise.all(identities.map((identity) => clearLoginAttempts(identity)));
 }
 
-// 生成簽名
-async function generateSignature(
-  data: string,
-  secret: string
-): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const messageData = encoder.encode(data);
-
-  // 匯入密鑰
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  // 生成簽名
-  const signature = await crypto.subtle.sign('HMAC', key, messageData);
-
-  // 轉換為十六進製字符串
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 // 生成認證Cookie（帶簽名）
 async function generateAuthCookie(
   username?: string,
-  password?: string,
-  role?: 'owner' | 'admin' | 'user',
-  includePassword = false
+  role?: 'owner' | 'admin' | 'user'
 ): Promise<string> {
   const authData: any = { role: role || 'user' };
-
-  // 只在需要時包含 password
-  if (includePassword && password) {
-    authData.password = password;
-  }
 
   const sessionSecret = getAuthSessionSecret();
   if (username && sessionSecret) {
@@ -115,10 +83,11 @@ export async function POST(req: NextRequest) {
   try {
     // 速率限制檢查
     const clientIp = getClientIp(req);
+    const storageType = getServerStorageType();
     // E2E 測試豁免改用獨立環境變數：密碼值是公開約定，任何人都能藉此關掉暴力破解限流
     const isE2ETest = process.env.E2E_TEST_MODE === 'true';
     // 本地 / localStorage 模式——僅校驗固定密碼
-    if (STORAGE_TYPE === 'localstorage') {
+    if (storageType === 'localstorage') {
       const envPassword = process.env.PASSWORD;
 
       // 未設定 PASSWORD 時拒絕登入（不再直接放行），請管理員先設定密碼
@@ -132,16 +101,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      let body: unknown;
-      try {
-        body = await req.json();
-      } catch {
+      const body = await readJsonObject(req);
+      if (!body) {
         return NextResponse.json({ error: '請求格式錯誤' }, { status: 400 });
       }
-      const password =
-        typeof body === 'object' && body !== null && 'password' in body
-          ? (body as { password?: unknown }).password
-          : undefined;
+      const password = body.password;
       if (typeof password !== 'string') {
         return NextResponse.json({ error: '密碼不能為空' }, { status: 400 });
       }
@@ -206,20 +170,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 資料庫 / redis 模式——校驗使用者名並嘗試連接資料庫
-    let body: unknown;
-    try {
-      body = await req.json();
-    } catch {
+    const body = await readJsonObject(req);
+    if (!body) {
       return NextResponse.json({ error: '請求格式錯誤' }, { status: 400 });
     }
-    const username =
-      typeof body === 'object' && body !== null && 'username' in body
-        ? (body as { username?: unknown }).username
-        : undefined;
-    const password =
-      typeof body === 'object' && body !== null && 'password' in body
-        ? (body as { password?: unknown }).password
-        : undefined;
+    const username = body.username;
+    const password = body.password;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json({ error: '使用者名不能為空' }, { status: 400 });
@@ -246,12 +202,7 @@ export async function POST(req: NextRequest) {
     ) {
       // 驗證成功，設定認證cookie
       const response = NextResponse.json({ ok: true });
-      const cookieValue = await generateAuthCookie(
-        username,
-        password,
-        'owner',
-        false
-      ); // 資料庫模式不包含 password
+      const cookieValue = await generateAuthCookie(username, 'owner');
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天過期
 
@@ -282,13 +233,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const config = await getFreshConfig();
-    const user = config.UserConfig.Users.find((u) => u.username === username);
-    if (user && user.banned) {
-      return NextResponse.json({ error: '使用者被封禁' }, { status: 401 });
-    }
-
-    // 校驗使用者密碼
+    // 先校驗使用者密碼，再檢查封禁狀態，避免攻擊者無需正確密碼即可枚舉被封禁帳號
     try {
       const pass = await db.verifyUser(username, password);
       if (!pass) {
@@ -298,14 +243,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const config = await getFreshConfig();
+      const user = config.UserConfig.Users.find((u) => u.username === username);
+      if (user && user.banned) {
+        return NextResponse.json({ error: '使用者被封禁' }, { status: 401 });
+      }
+
       // 驗證成功，設定認證cookie
       const response = NextResponse.json({ ok: true });
       const cookieValue = await generateAuthCookie(
         username,
-        password,
-        user?.role || 'user',
-        false
-      ); // 資料庫模式不包含 password
+        user?.role || 'user'
+      );
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天過期
 

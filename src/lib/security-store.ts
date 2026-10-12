@@ -5,8 +5,6 @@ import { pruneExpiredMapValues, setBoundedMapValue } from './bounded-map';
 import { logger } from './logger';
 import { getServerStorageType } from './storage-runtime';
 
-const storageType = getServerStorageType();
-
 let redisClientPromise: Promise<RedisClientType> | null = null;
 let upstashClient: UpstashRedis | null = null;
 const memoryVersions = new Map<string, number>();
@@ -31,12 +29,14 @@ return {count, ttl}
 `;
 
 function getRedisUrl(): string | null {
+  const storageType = getServerStorageType();
   return storageType === 'kvrocks'
     ? process.env.KVROCKS_URL || null
     : process.env.REDIS_URL || null;
 }
 
 async function getRedisClient(): Promise<RedisClientType | null> {
+  const storageType = getServerStorageType();
   const url = getRedisUrl();
   if (!url || !['redis', 'kvrocks'].includes(storageType)) return null;
   if (!redisClientPromise) {
@@ -56,6 +56,7 @@ async function getRedisClient(): Promise<RedisClientType | null> {
 }
 
 function getUpstashClient(): UpstashRedis | null {
+  const storageType = getServerStorageType();
   if (storageType !== 'upstash') return null;
   if (!process.env.UPSTASH_URL || !process.env.UPSTASH_TOKEN) return null;
   upstashClient ||= new UpstashRedis({
@@ -71,40 +72,53 @@ function versionKey(username: string): string {
 
 export async function getSessionVersion(username: string): Promise<number> {
   const key = versionKey(username);
-  const upstash = getUpstashClient();
-  if (upstash) {
-    const value = Number(await upstash.get<number>(key));
-    if (Number.isInteger(value) && value > 0) return value;
-    await upstash.set(key, 1, { nx: true });
-    const stored = Number(await upstash.get<number>(key));
-    return Number.isInteger(stored) && stored > 0 ? stored : 1;
-  }
-  const redis = await getRedisClient();
-  if (redis) {
-    const value = Number(await redis.get(key));
-    if (Number.isInteger(value) && value > 0) return value;
-    await redis.set(key, '1', { NX: true });
-    const stored = Number(await redis.get(key));
-    return Number.isInteger(stored) && stored > 0 ? stored : 1;
+  try {
+    const upstash = getUpstashClient();
+    if (upstash) {
+      const value = Number(await upstash.get<number>(key));
+      return Number.isInteger(value) && value > 0 ? value : 1;
+    }
+    const redis = await getRedisClient();
+    if (redis) {
+      const value = Number(await redis.get(key));
+      return Number.isInteger(value) && value > 0 ? value : 1;
+    }
+  } catch (error) {
+    logger.warn(
+      'Failed to read session version from remote store, falling back to memory:',
+      error
+    );
   }
   return memoryVersions.get(username) || 1;
 }
 
 export async function revokeUserSessions(username: string): Promise<number> {
   const key = versionKey(username);
-  const upstash = getUpstashClient();
-  if (upstash) {
-    return Number(await upstash.eval(REVOKE_SESSION_SCRIPT, [key], []));
-  }
-  const redis = await getRedisClient();
-  if (redis) {
-    return Number(
-      await redis.eval(REVOKE_SESSION_SCRIPT, { keys: [key], arguments: [] })
+  const nextMemory = (memoryVersions.get(username) || 1) + 1;
+  setBoundedMapValue(
+    memoryVersions,
+    username,
+    nextMemory,
+    MAX_MEMORY_LIMIT_ENTRIES
+  );
+  try {
+    const upstash = getUpstashClient();
+    if (upstash) {
+      return Number(await upstash.eval(REVOKE_SESSION_SCRIPT, [key], []));
+    }
+    const redis = await getRedisClient();
+    if (redis) {
+      return Number(
+        await redis.eval(REVOKE_SESSION_SCRIPT, { keys: [key], arguments: [] })
+      );
+    }
+  } catch (error) {
+    logger.warn(
+      'Failed to revoke session in remote store, falling back to memory:',
+      error
     );
   }
-  const next = (memoryVersions.get(username) || 1) + 1;
-  memoryVersions.set(username, next);
-  return next;
+  return nextMemory;
 }
 
 function rateLimitKey(namespace: string, identity: string): string {
@@ -125,26 +139,33 @@ export async function consumeRateLimit(
   windowSeconds: number
 ): Promise<{ blocked: boolean; retryAfter: number }> {
   const key = rateLimitKey(namespace, identity);
-  const upstash = getUpstashClient();
-  if (upstash) {
-    const [rawCount, rawTtl] = (await upstash.eval(
-      CONSUME_RATE_LIMIT_SCRIPT,
-      [key],
-      [String(windowSeconds)]
-    )) as [number, number];
-    const count = Number(rawCount);
-    const ttl = Math.max(1, Number(rawTtl));
-    return { blocked: count > limit, retryAfter: ttl };
-  }
-  const redis = await getRedisClient();
-  if (redis) {
-    const [rawCount, rawTtl] = (await redis.eval(CONSUME_RATE_LIMIT_SCRIPT, {
-      keys: [key],
-      arguments: [String(windowSeconds)],
-    })) as [number, number];
-    const count = Number(rawCount);
-    const ttl = Math.max(1, Number(rawTtl));
-    return { blocked: count > limit, retryAfter: ttl };
+  try {
+    const upstash = getUpstashClient();
+    if (upstash) {
+      const [rawCount, rawTtl] = (await upstash.eval(
+        CONSUME_RATE_LIMIT_SCRIPT,
+        [key],
+        [String(windowSeconds)]
+      )) as [number, number];
+      const count = Number(rawCount);
+      const ttl = Math.max(1, Number(rawTtl));
+      return { blocked: count > limit, retryAfter: ttl };
+    }
+    const redis = await getRedisClient();
+    if (redis) {
+      const [rawCount, rawTtl] = (await redis.eval(CONSUME_RATE_LIMIT_SCRIPT, {
+        keys: [key],
+        arguments: [String(windowSeconds)],
+      })) as [number, number];
+      const count = Number(rawCount);
+      const ttl = Math.max(1, Number(rawTtl));
+      return { blocked: count > limit, retryAfter: ttl };
+    }
+  } catch (error) {
+    logger.warn(
+      'Failed to consume rate limit in remote store, falling back to memory:',
+      error
+    );
   }
 
   const now = Date.now();
@@ -167,17 +188,21 @@ export async function clearRateLimit(
   identity: string
 ): Promise<void> {
   const key = rateLimitKey(namespace, identity);
-  const upstash = getUpstashClient();
-  if (upstash) {
-    await upstash.del(key);
-    return;
-  }
-  const redis = await getRedisClient();
-  if (redis) {
-    await redis.del(key);
-    return;
-  }
   memoryLimits.delete(key);
+  try {
+    const upstash = getUpstashClient();
+    if (upstash) {
+      await upstash.del(key);
+      return;
+    }
+    const redis = await getRedisClient();
+    if (redis) {
+      await redis.del(key);
+      return;
+    }
+  } catch (error) {
+    logger.warn('Failed to clear rate limit in remote store:', error);
+  }
 }
 
 export async function consumeLoginAttempt(

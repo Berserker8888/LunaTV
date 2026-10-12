@@ -145,12 +145,15 @@ function SearchPageClient() {
     }
   };
 
+  const restoredScrollQueryRef = useRef('');
+
   // 記錄與還原滾動位置（依目前搜尋關鍵字分開記，避免不同搜尋互相跳轉高度）
   useEffect(() => {
     const queryKey = submittedQuery.trim();
     if (!queryKey) return;
     const storageKey = `luna_search_scroll_${encodeURIComponent(queryKey)}`;
     const handleScroll = () => {
+      if (restoredScrollQueryRef.current !== queryKey) return;
       try {
         sessionStorage.setItem(storageKey, String(window.scrollY));
       } catch {
@@ -163,7 +166,13 @@ function SearchPageClient() {
 
   useEffect(() => {
     const queryKey = submittedQuery.trim();
-    if (!isLoading && searchResults.length > 0 && queryKey) {
+    if (
+      !isLoading &&
+      searchResults.length > 0 &&
+      queryKey &&
+      restoredScrollQueryRef.current !== queryKey
+    ) {
+      restoredScrollQueryRef.current = queryKey;
       try {
         const storageKey = `luna_search_scroll_${encodeURIComponent(queryKey)}`;
         const savedScroll = sessionStorage.getItem(storageKey);
@@ -237,6 +246,7 @@ function SearchPageClient() {
       const searchResponse = await fetch(
         `/api/search?q=${encodeURIComponent(primary)}`
       );
+      if (!searchResponse.ok) return;
       const data = await searchResponse.json();
       if (currentQueryRef.current !== originalQuery) return;
 
@@ -410,9 +420,14 @@ function SearchPageClient() {
   // 核心更新：對 API 返回的結果進行模糊匹配過濾，根治譯名差異導致的空畫面
   const fuzzySearchResults = useMemo(() => {
     const query = submittedQuery.trim();
+    const resolved = resolvedSearchQuery.trim();
     if (!query) return searchResults;
-    return searchResults.filter((item) => isFuzzyMatch(item.title, query));
-  }, [searchResults, submittedQuery]);
+    return searchResults.filter(
+      (item) =>
+        isFuzzyMatch(item.title, query) ||
+        (Boolean(resolved) && isFuzzyMatch(item.title, resolved))
+    );
+  }, [searchResults, submittedQuery, resolvedSearchQuery]);
 
   // 空結果要秀的「實際試過的中國片名」；與 SearchQueryNotice 同一套優先序
   const triedMainlandLabel = useMemo(
@@ -440,9 +455,17 @@ function SearchPageClient() {
     );
   }, [fuzzySearchResults]);
 
+  const groupStatsMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof computeGroupStats>>();
+    aggregatedResults.forEach(([mapKey, group]) => {
+      map.set(mapKey, computeGroupStats(group));
+    });
+    return map;
+  }, [aggregatedResults]);
+
   useEffect(() => {
     aggregatedResults.forEach(([mapKey, group]) => {
-      const stats = computeGroupStats(group);
+      const stats = groupStatsMap.get(mapKey) ?? computeGroupStats(group);
       const prev = groupStatsRef.current.get(mapKey);
       if (!prev) {
         groupStatsRef.current.set(mapKey, stats);
@@ -464,7 +487,7 @@ function SearchPageClient() {
         groupStatsRef.current.set(mapKey, stats);
       }
     });
-  }, [aggregatedResults]);
+  }, [aggregatedResults, groupStatsMap]);
 
   const filterOptions = useMemo(() => {
     const sourcesSet = new Map<string, string>();
@@ -529,8 +552,13 @@ function SearchPageClient() {
     });
 
     // 預設 yearOrder === 'none' 也必須跑相關性排序（只跳過年份鍵）
-    return sortSearchItems(filtered, submittedQuery, yearOrder);
-  }, [fuzzySearchResults, filterAll, submittedQuery]);
+    return sortSearchItems(
+      filtered,
+      submittedQuery,
+      yearOrder,
+      resolvedSearchQuery
+    );
+  }, [fuzzySearchResults, filterAll, submittedQuery, resolvedSearchQuery]);
 
   const filteredAggResults = useMemo(() => {
     const { source, title, year, yearOrder } = filterAgg;
@@ -552,11 +580,16 @@ function SearchPageClient() {
       title: group[0]?.title ?? '',
       year: group[0]?.year ?? 'unknown',
     }));
-    const sorted = sortSearchItems(representatives, submittedQuery, yearOrder);
+    const sorted = sortSearchItems(
+      representatives,
+      submittedQuery,
+      yearOrder,
+      resolvedSearchQuery
+    );
     return sorted.map(
       (entry) => [entry.key, entry.group] as [string, SearchResult[]]
     );
-  }, [aggregatedResults, filterAgg, submittedQuery]);
+  }, [aggregatedResults, filterAgg, submittedQuery, resolvedSearchQuery]);
 
   useEffect(() => {
     if (!searchParams.get('q')) {
@@ -1172,6 +1205,7 @@ function SearchPageClient() {
                             const poster = group[0]?.poster || '';
                             const year = group[0]?.year || 'unknown';
                             const { episodes, source_names, type_name } =
+                              groupStatsMap.get(mapKey) ??
                               computeGroupStats(group);
                             const primary = group[0];
                             return (
@@ -1379,7 +1413,7 @@ function SearchPageClient() {
                         const poster = group[0]?.poster || '';
                         const year = group[0]?.year || 'unknown';
                         const { episodes, source_names, douban_id, type_name } =
-                          computeGroupStats(group);
+                          groupStatsMap.get(mapKey) ?? computeGroupStats(group);
                         const type = episodes === 1 ? 'movie' : 'tv';
                         if (!groupStatsRef.current.has(mapKey)) {
                           groupStatsRef.current.set(mapKey, {

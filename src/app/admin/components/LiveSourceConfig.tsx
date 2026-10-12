@@ -29,6 +29,130 @@ import { configSliceSignature } from './configDraft';
 import { useLoadingState } from './Loading';
 import { LiveDataSource } from './types';
 
+interface LiveSourceDraggableRowProps {
+  liveSource: LiveDataSource;
+  isLoading: (key: string) => boolean;
+  onToggleEnable: (key: string) => void;
+  onEdit: (liveSource: LiveDataSource) => void;
+  onDelete: (key: string) => void;
+}
+
+const DraggableRow = ({
+  liveSource,
+  isLoading,
+  onToggleEnable,
+  onEdit,
+  onDelete,
+}: LiveSourceDraggableRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: liveSource.key });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  } as React.CSSProperties;
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
+    >
+      <td
+        className='px-2 py-4 cursor-grab text-zinc-400'
+        style={{ touchAction: 'none' }}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        {liveSource.name}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
+        {liveSource.key}
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
+        title={liveSource.url}
+      >
+        {liveSource.url}
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
+        title={liveSource.epg || '-'}
+      >
+        {liveSource.epg || '-'}
+      </td>
+      <td
+        className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
+        title={liveSource.ua || '-'}
+      >
+        {liveSource.ua || '-'}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 text-center'>
+        {liveSource.channelNumber && liveSource.channelNumber > 0
+          ? liveSource.channelNumber
+          : '-'}
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
+        <span
+          className={`px-2 py-1 text-xs rounded-full ${
+            !liveSource.disabled
+              ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+              : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+          }`}
+        >
+          {!liveSource.disabled ? '啟用中' : '已禁用'}
+        </span>
+      </td>
+      <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
+        <button
+          onClick={() => onToggleEnable(liveSource.key)}
+          disabled={isLoading(`toggleLiveSource_${liveSource.key}`)}
+          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+            !liveSource.disabled
+              ? buttonStyles.roundedDanger
+              : buttonStyles.roundedSuccess
+          } transition-colors ${
+            isLoading(`toggleLiveSource_${liveSource.key}`)
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+          }`}
+        >
+          {!liveSource.disabled ? '禁用' : '啟用'}
+        </button>
+        {liveSource.from !== 'config' && (
+          <>
+            <button
+              onClick={() => onEdit(liveSource)}
+              disabled={isLoading(`editLiveSource_${liveSource.key}`)}
+              className={`${buttonStyles.roundedPrimary} ${
+                isLoading(`editLiveSource_${liveSource.key}`)
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
+            >
+              編輯
+            </button>
+            <button
+              onClick={() => onDelete(liveSource.key)}
+              disabled={isLoading(`deleteLiveSource_${liveSource.key}`)}
+              className={`${buttonStyles.roundedSecondary} ${
+                isLoading(`deleteLiveSource_${liveSource.key}`)
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
+            >
+              刪除
+            </button>
+          </>
+        )}
+      </td>
+    </tr>
+  );
+};
+
 export const LiveSourceConfig = ({
   config,
   refreshConfig,
@@ -244,117 +368,6 @@ export const LiveSourceConfig = ({
       .catch(() => {
         console.error('操作失敗', 'sort', order);
       });
-  };
-
-  // 可拖拽行封裝 (dnd-kit)
-  const DraggableRow = ({ liveSource }: { liveSource: LiveDataSource }) => {
-    const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: liveSource.key });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    } as React.CSSProperties;
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className='hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors select-none'
-      >
-        <td
-          className='px-2 py-4 cursor-grab text-zinc-400'
-          style={{ touchAction: 'none' }}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          {liveSource.name}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
-          {liveSource.key}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[12rem] truncate'
-          title={liveSource.url}
-        >
-          {liveSource.url}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
-          title={liveSource.epg || '-'}
-        >
-          {liveSource.epg || '-'}
-        </td>
-        <td
-          className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 max-w-[8rem] truncate'
-          title={liveSource.ua || '-'}
-        >
-          {liveSource.ua || '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100 text-center'>
-          {liveSource.channelNumber && liveSource.channelNumber > 0
-            ? liveSource.channelNumber
-            : '-'}
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap max-w-[1rem]'>
-          <span
-            className={`px-2 py-1 text-xs rounded-full ${
-              !liveSource.disabled
-                ? 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                : 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
-            }`}
-          >
-            {!liveSource.disabled ? '啟用中' : '已禁用'}
-          </span>
-        </td>
-        <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2'>
-          <button
-            onClick={() => handleToggleEnable(liveSource.key)}
-            disabled={isLoading(`toggleLiveSource_${liveSource.key}`)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
-              !liveSource.disabled
-                ? buttonStyles.roundedDanger
-                : buttonStyles.roundedSuccess
-            } transition-colors ${
-              isLoading(`toggleLiveSource_${liveSource.key}`)
-                ? 'opacity-50 cursor-not-allowed'
-                : ''
-            }`}
-          >
-            {!liveSource.disabled ? '禁用' : '啟用'}
-          </button>
-          {liveSource.from !== 'config' && (
-            <>
-              <button
-                onClick={() => setEditingLiveSource(liveSource)}
-                disabled={isLoading(`editLiveSource_${liveSource.key}`)}
-                className={`${buttonStyles.roundedPrimary} ${
-                  isLoading(`editLiveSource_${liveSource.key}`)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                編輯
-              </button>
-              <button
-                onClick={() => handleDelete(liveSource.key)}
-                disabled={isLoading(`deleteLiveSource_${liveSource.key}`)}
-                className={`${buttonStyles.roundedSecondary} ${
-                  isLoading(`deleteLiveSource_${liveSource.key}`)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                }`}
-              >
-                刪除
-              </button>
-            </>
-          )}
-        </td>
-      </tr>
-    );
   };
 
   if (!config) {
@@ -635,7 +648,14 @@ export const LiveSourceConfig = ({
             >
               <tbody className='divide-y divide-zinc-200 dark:divide-zinc-700'>
                 {liveSources.map((liveSource) => (
-                  <DraggableRow key={liveSource.key} liveSource={liveSource} />
+                  <DraggableRow
+                    key={liveSource.key}
+                    liveSource={liveSource}
+                    isLoading={isLoading}
+                    onToggleEnable={handleToggleEnable}
+                    onEdit={setEditingLiveSource}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </tbody>
             </SortableContext>

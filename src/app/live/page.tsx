@@ -4,7 +4,7 @@
 
 import Artplayer from 'artplayer';
 import Hls, { ErrorData, Events } from 'hls.js';
-import { Heart, Radio, Tv } from 'lucide-react';
+import { Radio, Tv } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -27,11 +27,13 @@ import PageLayout from '@/components/PageLayout';
 import PageLoading from '@/components/PageLoading';
 import { useToast } from '@/components/ToastProvider';
 
+import { FavoriteIcon } from '@/app/play/FavoriteIcon';
 import {
   HLS_LIVE_STALE_PLAYLIST_MESSAGE,
   isPlaylistUnchangedError,
   nextHlsFatalAction,
 } from '@/app/play/hls-fatal';
+import { ensureVideoSource } from '@/app/play/play-page-helpers';
 
 import { cleanEpgData } from './live-epg-utils';
 import { LiveChannel, LiveSource } from './live-types';
@@ -251,14 +253,8 @@ function LivePageClient() {
       setLoadingStage('ready');
       setLoadingMessage('準備就緒…');
       setLoading(false);
-    } catch (err) {
-      console.error('取得直播源失敗:', err);
-      // 空列表與「載入失敗」畫面相同；必須明確提示，否則使用者會以為沒有直播源
-      setLiveSources([]);
-      setLoading(false);
-      toast('取得直播源失敗，請稍後再試', 'error');
-    } finally {
-      // 移除 URL 搜尋參數中的 source 和 id
+
+      // 成功載入後才移除 URL 搜尋參數中的 source 和 id
       const newSearchParams = new URLSearchParams(searchParams.toString());
       newSearchParams.delete('source');
       newSearchParams.delete('id');
@@ -268,6 +264,12 @@ function LivePageClient() {
         : window.location.pathname;
 
       router.replace(newUrl);
+    } catch (err) {
+      console.error('取得直播源失敗:', err);
+      // 空列表與「載入失敗」畫面相同；必須明確提示，否則使用者會以為沒有直播源
+      setLiveSources([]);
+      setLoading(false);
+      toast('取得直播源失敗，請稍後再試', 'error');
     }
   };
 
@@ -540,9 +542,6 @@ function LivePageClient() {
 
   // 清理播放器資源的統一函數
   const cleanupPlayer = () => {
-    // 重置不支援的類型狀態
-    setUnsupportedType(null);
-
     if (artPlayerRef.current) {
       try {
         // 先暫停播放
@@ -591,27 +590,6 @@ function LivePageClient() {
         console.warn('清理播放器資源時出錯:', err);
         artPlayerRef.current = null;
       }
-    }
-  };
-
-  // 確保影片源正確設定
-  const ensureVideoSource = (video: HTMLVideoElement | null, url: string) => {
-    if (!video || !url) return;
-    const sources = Array.from(video.getElementsByTagName('source'));
-    const existed = sources.some((s) => s.src === url);
-    if (!existed) {
-      // 移除舊的 source，保持唯一
-      sources.forEach((s) => s.remove());
-      const sourceEl = document.createElement('source');
-      sourceEl.src = url;
-      video.appendChild(sourceEl);
-    }
-
-    // 始終允許遠程播放（AirPlay / Cast）
-    video.disableRemotePlayback = false;
-    // 如果曾經有禁用屬性，移除之
-    if (video.hasAttribute('disableRemotePlayback')) {
-      video.removeAttribute('disableRemotePlayback');
     }
   };
 
@@ -810,7 +788,7 @@ function LivePageClient() {
           this.load = function (context: any, config: any, callbacks: any) {
             // 所有的請求都帶一個 source 參數
             try {
-              const url = new URL(context.url);
+              const url = new URL(context.url, window.location.origin);
               url.searchParams.set(
                 'moontv-source',
                 currentSourceRef.current?.key || ''
@@ -832,7 +810,7 @@ function LivePageClient() {
               if (isLiveDirectConnect) {
                 // 瀏覽器直連，使用 URL 對象處理參數
                 try {
-                  const url = new URL(context.url);
+                  const url = new URL(context.url, window.location.origin);
                   url.searchParams.set('allowCORS', 'true');
                   context.url = url.toString();
                 } catch (error) {
@@ -1067,7 +1045,7 @@ function LivePageClient() {
           playsInline: true,
           autoPlayback: false,
           airplay: true,
-          theme: '#ff3e6c',
+          theme: '#00B4D8',
           lang: 'zh-tw',
           hotkey: false,
           fastForward: false, // 直播不需要快進
@@ -1156,14 +1134,7 @@ function LivePageClient() {
     };
   }, [Artplayer, Hls, videoUrl, currentChannel, loading]);
 
-  // 清理播放器資源
-  useEffect(() => {
-    return () => {
-      cleanupPlayer();
-    };
-  }, []);
-
-  // 頁面解除安裝時的額外清理
+  // 頁面解除安裝時的清理
   useEffect(() => {
     const handleBeforeUnload = () => {
       cleanupPlayer();
@@ -1529,31 +1500,6 @@ function LivePageClient() {
     </PageLayout>
   );
 }
-
-// FavoriteIcon 組件
-const FavoriteIcon = ({ filled }: { filled: boolean }) => {
-  if (filled) {
-    return (
-      <svg
-        className='h-6 w-6'
-        viewBox='0 0 24 24'
-        xmlns='http://www.w3.org/2000/svg'
-      >
-        <path
-          d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'
-          fill='#ff3e6c'
-          stroke='#ff3e6c'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-      </svg>
-    );
-  }
-  return (
-    <Heart className='h-6 w-6 stroke-[1] text-zinc-600 dark:text-zinc-300' />
-  );
-};
 
 export default function LivePage() {
   return (

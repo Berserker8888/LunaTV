@@ -32,7 +32,3 @@ export function deduplicateRequest<T>(
   pendingRequests.set(key, promise);
   return promise;
 }
-
-export function getActiveRequestCount(): number {
-  return pendingRequests.size;
-}

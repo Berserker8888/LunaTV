@@ -82,13 +82,3 @@ export function rejectCrossSiteRequest(request: Request): Response | null {
     { status: 403, headers: { 'Cache-Control': 'no-store' } }
   );
 }
-
-/**
- * sendBeacon 關頁存檔常不帶 Origin。沒有 Origin 時放行，有 Origin 才擋跨站。
- */
-export function rejectCrossSiteRequestIfOrigin(
-  request: Request
-): Response | null {
-  if (!request.headers.get('origin')) return null;
-  return rejectCrossSiteRequest(request);
-}

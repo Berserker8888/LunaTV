@@ -6,6 +6,7 @@ import {
   mergeAndSortAliases,
 } from './regional-title-aliases';
 import { normalizeTitle } from './string-utils';
+import { parseChineseNumber } from './titleParser';
 
 export type TmdbMediaType = 'movie' | 'tv';
 
@@ -48,42 +49,6 @@ export interface TmdbMatch {
   tmdbUrl: string;
 }
 
-const CN_DIGITS: Record<string, number> = {
-  零: 0,
-  一: 1,
-  二: 2,
-  兩: 2,
-  三: 3,
-  四: 4,
-  五: 5,
-  六: 6,
-  七: 7,
-  八: 8,
-  九: 9,
-};
-
-function parseSeasonToken(raw: string): number | null {
-  if (/^\d{1,2}$/.test(raw)) {
-    const value = Number(raw);
-    return value >= 1 && value <= 60 ? value : null;
-  }
-
-  if (raw === '十') return 10;
-  const tenIndex = raw.indexOf('十');
-  if (tenIndex >= 0) {
-    const tens = tenIndex === 0 ? 1 : CN_DIGITS[raw[tenIndex - 1]];
-    const ones = tenIndex === raw.length - 1 ? 0 : CN_DIGITS[raw[tenIndex + 1]];
-    if (tens == null || ones == null) return null;
-    const value = tens * 10 + ones;
-    return value >= 1 && value <= 60 ? value : null;
-  }
-
-  if (raw.length === 1 && CN_DIGITS[raw] != null && CN_DIGITS[raw] > 0) {
-    return CN_DIGITS[raw];
-  }
-  return null;
-}
-
 /** 從片名取出季數。沒寫季數就回傳 null，讓 TMDB 用整部作品。 */
 export function extractSeasonNumber(title: string): number | null {
   const matched =
@@ -91,7 +56,9 @@ export function extractSeasonNumber(title: string): number | null {
     title.match(/Season\s*(\d{1,2})/i) ||
     title.match(/\bS(\d{1,2})(?:E\d{1,3})?\b/i);
   if (!matched) return null;
-  return parseSeasonToken(matched[1]);
+  const raw = matched[1];
+  const value = /^\d{1,2}$/.test(raw) ? Number(raw) : parseChineseNumber(raw);
+  return value >= 1 && value <= 60 ? value : null;
 }
 
 export function preferTmdbMediaType(

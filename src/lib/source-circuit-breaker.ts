@@ -30,6 +30,7 @@ const COOLDOWN_MS = (() => {
 const MAX_TRACKED_SOURCES = 500;
 const BREAKER_HASH_KEY = 'lunatv:source-breaker';
 const LOCAL_HYDRATE_TTL_MS = 5_000;
+const PROBE_TIMEOUT_MS = 30_000;
 
 interface BreakerState {
   consecutiveFailures: number;
@@ -37,6 +38,8 @@ interface BreakerState {
   openUntil: number;
   /** half-open：冷卻期滿後已放行一個探測請求 */
   probing: boolean;
+  /** 探測請求放行時間戳，逾時自動釋放避免 probing 永久卡死 */
+  probeStartedAt?: number;
 }
 
 type StoredBreaker = {
@@ -50,7 +53,12 @@ let lastHydratedAt = 0;
 function getState(sourceKey: string): BreakerState {
   let state = breakerStates.get(sourceKey);
   if (!state) {
-    state = { consecutiveFailures: 0, openUntil: 0, probing: false };
+    state = {
+      consecutiveFailures: 0,
+      openUntil: 0,
+      probing: false,
+      probeStartedAt: 0,
+    };
     setBoundedMapValue(breakerStates, sourceKey, state, MAX_TRACKED_SOURCES);
   }
   return state;
@@ -115,7 +123,13 @@ export async function hydrateBreakersFromStore(): Promise<void> {
     }
     const existing = breakerStates.get(sourceKey);
     // 本行程正在探測、或本地冷卻更新，不要被舊快照蓋掉
-    if (existing?.probing) continue;
+    if (
+      existing?.probing &&
+      (!existing.probeStartedAt ||
+        now - existing.probeStartedAt < PROBE_TIMEOUT_MS)
+    ) {
+      continue;
+    }
     if (existing && existing.openUntil >= parsed.openUntil) continue;
     if (parsed.openUntil <= now) continue;
 
@@ -126,6 +140,7 @@ export async function hydrateBreakersFromStore(): Promise<void> {
         consecutiveFailures: parsed.consecutiveFailures,
         openUntil: parsed.openUntil,
         probing: false,
+        probeStartedAt: 0,
       },
       MAX_TRACKED_SOURCES
     );
@@ -159,9 +174,16 @@ export function isSourceTripped(sourceKey: string): boolean {
   const state = breakerStates.get(sourceKey);
   if (!state || state.openUntil === 0) return false;
 
-  if (Date.now() >= state.openUntil) {
-    if (!state.probing) {
+  const now = Date.now();
+  if (now >= state.openUntil) {
+    if (
+      !state.probing ||
+      (state.probeStartedAt !== undefined &&
+        state.probeStartedAt > 0 &&
+        now - state.probeStartedAt >= PROBE_TIMEOUT_MS)
+    ) {
       state.probing = true;
+      state.probeStartedAt = now;
       return false; // half-open：放行一個探測請求
     }
     // 探測請求尚未回報結果，其餘請求仍跳過
@@ -170,12 +192,21 @@ export function isSourceTripped(sourceKey: string): boolean {
   return true;
 }
 
+/** 探測請求因取消／去重未實際完成時，釋放 probing 旗標 */
+export function releaseSourceProbe(sourceKey: string): void {
+  const state = breakerStates.get(sourceKey);
+  if (!state || !state.probing) return;
+  state.probing = false;
+  state.probeStartedAt = 0;
+}
+
 export function recordSourceSuccess(sourceKey: string): void {
   const state = breakerStates.get(sourceKey);
   if (!state) return;
   state.consecutiveFailures = 0;
   state.openUntil = 0;
   state.probing = false;
+  state.probeStartedAt = 0;
   deletePersistedField(sourceKey);
 }
 
@@ -187,6 +218,7 @@ export function recordSourceFailure(sourceKey: string): void {
     // 探測失敗：立刻重新進入冷卻
     state.openUntil = Date.now() + COOLDOWN_MS;
     state.probing = false;
+    state.probeStartedAt = 0;
     persistField(sourceKey, state);
     return;
   }
@@ -194,6 +226,7 @@ export function recordSourceFailure(sourceKey: string): void {
   if (state.consecutiveFailures >= FAILURE_THRESHOLD) {
     state.openUntil = Date.now() + COOLDOWN_MS;
     state.probing = false;
+    state.probeStartedAt = 0;
     persistField(sourceKey, state);
   }
 }

@@ -1,5 +1,6 @@
 import { toSearchSimplified } from '@/lib/chinese';
 import { getMainlandSearchQueries } from '@/lib/mainland-search';
+import { type RegionalTitleAlias } from '@/lib/regional-title-aliases';
 
 /**
  * 搜尋建議的查詢計畫（與主搜尋共用 getMainlandSearchQueries）。
@@ -7,8 +8,11 @@ import { getMainlandSearchQueries } from '@/lib/mainland-search';
  */
 
 /** 建議路徑實際丟給 searchFromApi 的 primary（只取計畫第 1 個；空則原文） */
-export function getSuggestionPrimaryQuery(query: string): string {
-  const planned = getMainlandSearchQueries(query);
+export function getSuggestionPrimaryQuery(
+  query: string,
+  customAliases?: RegionalTitleAlias[]
+): string {
+  const planned = getMainlandSearchQueries(query, customAliases);
   return planned[0] || query;
 }
 
@@ -16,8 +20,11 @@ export function getSuggestionPrimaryQuery(query: string): string {
  * 從上游標題拆出的詞要能對上台譯輸入：
  * 需同時含原文、簡化、primary、全部 planned（去重）。
  */
-export function getSuggestionMatchNeedles(query: string): string[] {
-  const planned = getMainlandSearchQueries(query);
+export function getSuggestionMatchNeedles(
+  query: string,
+  customAliases?: RegionalTitleAlias[]
+): string[] {
+  const planned = getMainlandSearchQueries(query, customAliases);
   const primaryQuery = planned[0] || query;
   return Array.from(
     new Set(

@@ -7,7 +7,7 @@ import {
   requireAdmin,
   requireOwner,
 } from './api-auth';
-import { getAuthSignaturePayload } from './auth';
+import { generateSignature as sign, getAuthSignaturePayload } from './auth';
 import { getConfig } from './config';
 
 jest.mock('./config', () => ({
@@ -43,23 +43,6 @@ if (typeof globalThis.Request === 'undefined') {
 }
 
 const SECRET = 'server-secret';
-
-async function sign(payload: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const encode = (text: string) =>
-    encoder.encode(text) as Uint8Array<ArrayBuffer>;
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, encode(payload));
-  return Array.from(new Uint8Array(signature))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 function requestWithAuth(authData: unknown): Request {
   const cookie = `auth=${encodeURIComponent(JSON.stringify(authData))}`;

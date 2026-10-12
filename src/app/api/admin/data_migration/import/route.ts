@@ -100,14 +100,12 @@ async function backupExistingData(): Promise<{
     let password: string | undefined;
     if (username !== process.env.USERNAME) {
       const storageClient = (db as any).storage?.client;
-      if (!storageClient || typeof storageClient.get !== 'function') {
-        throw new Error(`無法備份使用者 ${username} 的登入資料`);
+      if (storageClient && typeof storageClient.get === 'function') {
+        const storedPassword = await storageClient.get(`u:${username}:pwd`);
+        if (storedPassword) {
+          password = String(storedPassword);
+        }
       }
-      const storedPassword = await storageClient.get(`u:${username}:pwd`);
-      if (!storedPassword) {
-        throw new Error(`無法備份使用者 ${username} 的登入資料`);
-      }
-      password = String(storedPassword);
     }
     userBackups[username] = {
       playRecords,
@@ -291,7 +289,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '備份檔案格式錯誤' }, { status: 400 });
     }
 
-    // 驗證數據格式
+    // 驗證數據數據格式
     if (
       typeof importData !== 'object' ||
       importData === null ||
@@ -322,7 +320,7 @@ export async function POST(req: NextRequest) {
         userData: Record<
           string,
           {
-            password?: string;
+            password?: string | null;
             playRecords?: Record<string, unknown>;
             favorites?: Record<string, unknown>;
             skipConfigs?: Record<string, unknown>;
@@ -383,7 +381,8 @@ export async function POST(req: NextRequest) {
         );
       }
       if (
-        username !== ownerUsername &&
+        rawUser.password !== undefined &&
+        rawUser.password !== null &&
         (typeof rawUser.password !== 'string' || !rawUser.password)
       ) {
         return NextResponse.json(
@@ -391,7 +390,13 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (username !== ownerUsername && !configuredUsers.has(username)) {
+      const hasPassword =
+        typeof rawUser.password === 'string' && rawUser.password.length > 0;
+      if (
+        username !== ownerUsername &&
+        hasPassword &&
+        !configuredUsers.has(username)
+      ) {
         importedAdminConfig.UserConfig.Users.push({
           username,
           role: 'user',
@@ -401,16 +406,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    for (const username of configuredUsers) {
-      if (username === ownerUsername) continue;
-      const user = userData[username];
-      if (!user || typeof user.password !== 'string' || !user.password) {
-        return NextResponse.json(
-          { error: `使用者 ${username} 缺少登入資料` },
-          { status: 400 }
+    // 過濾掉未包含登入密碼的非站長帳號（例如更換 USERNAME 後的舊站長帳號）
+    importedAdminConfig.UserConfig.Users =
+      importedAdminConfig.UserConfig.Users.filter((user) => {
+        if (user.username === ownerUsername) return true;
+        const exportedUser = userData[user.username];
+        return (
+          typeof exportedUser?.password === 'string' &&
+          exportedUser.password.length > 0
         );
-      }
-    }
+      });
 
     // 備份現有資料，以便匯入失敗時回滾
     const backup = await backupExistingData();

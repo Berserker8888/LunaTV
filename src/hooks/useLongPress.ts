@@ -103,20 +103,25 @@ export const useLongPress = ({
     wasButton.current = false;
   }, [clearTimer, onClick]);
 
+  const handleCancel = useCallback(() => {
+    clearTimer();
+    isLongPress.current = false;
+    startPosition.current = null;
+    isActive.current = false;
+    wasButton.current = false;
+  }, [clearTimer]);
+
   // 觸摸事件處理器
   const onTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      // 檢查是否觸摸的是按鈕或其他交互元素
-      const target = e.target as HTMLElement;
-      const buttonElement = target.closest('[data-button]');
-
-      // 更精確的按鈕檢測：只有當觸摸目標直接是按鈕元素或其直接子元素時才認為是按鈕
-      const isDirectButton = target.hasAttribute('data-button');
-      const isButton = !!buttonElement && isDirectButton;
+      // 檢查是否觸摸的是按鈕或其他交互元素（含其內部 SVG / path 子節點）
+      const target = e.target as HTMLElement | null;
+      const isButton = Boolean(target?.closest?.('[data-button]'));
 
       // 阻止默认的长按行为，但不阻止触摸开始事件
       const touch = e.touches[0];
-      handleStart(touch.clientX, touch.clientY, !!isButton);
+      if (!touch) return;
+      handleStart(touch.clientX, touch.clientY, isButton);
     },
     [handleStart]
   );
@@ -124,6 +129,7 @@ export const useLongPress = ({
   const onTouchMove = useCallback(
     (e: React.TouchEvent) => {
       const touch = e.touches[0];
+      if (!touch) return;
       handleMove(touch.clientX, touch.clientY);
     },
     [handleMove]
@@ -131,8 +137,11 @@ export const useLongPress = ({
 
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      // 始终阻止默认行为，避免任何系统长按菜单
-      e.preventDefault();
+      // 非按鈕或已觸發長按時阻止預設行為，避免系統長按選單與重複 click；
+      // 按鈕短按則保留原生 click 以觸發按鈕自身的 onClick
+      if (!wasButton.current || isLongPress.current) {
+        e.preventDefault();
+      }
       e.stopPropagation();
       handleEnd();
     },
@@ -143,5 +152,6 @@ export const useLongPress = ({
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    onTouchCancel: handleCancel,
   };
 };

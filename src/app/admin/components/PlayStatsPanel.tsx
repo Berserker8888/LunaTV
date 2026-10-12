@@ -142,73 +142,78 @@ export function PlayStatsPanel() {
       {/* 7 天觀看趨勢 + 熱門片源 */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
         {/* 7 天觀看趨勢 */}
-        {stats.dailyStats.some((d) => d.watchTime > 0) && (
-          <div className='bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700/50'>
-            <div className='text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3'>
-              最近 7 天觀看趨勢
-            </div>
-            <div className='flex items-end gap-2 h-32'>
-              {stats.dailyStats.map((day, i) => {
-                const maxTime = Math.max(
-                  ...stats.dailyStats.map((d) => d.watchTime),
-                  1
-                );
-                const height = Math.max((day.watchTime / maxTime) * 100, 2);
-                return (
-                  <div
-                    key={i}
-                    className='flex-1 flex flex-col items-center gap-1'
-                  >
-                    <div className='text-[10px] text-zinc-400'>
-                      {day.plays > 0 ? `${day.plays}次` : ''}
-                    </div>
-                    <div
-                      className='w-full bg-accent/80 rounded-t transition-all duration-300'
-                      style={{ height: `${height}%` }}
-                    />
-                    <div className='text-[10px] text-zinc-400'>
-                      {day.date.slice(5)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {stats.dailyStats.some((d) => d.watchTime > 0) &&
+          (() => {
+            const maxTime = Math.max(
+              ...stats.dailyStats.map((d) => d.watchTime),
+              1
+            );
+            return (
+              <div className='bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700/50'>
+                <div className='text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3'>
+                  最近 7 天觀看趨勢
+                </div>
+                <div className='flex items-end gap-2 h-32'>
+                  {stats.dailyStats.map((day, i) => {
+                    const height = Math.max((day.watchTime / maxTime) * 100, 2);
+                    return (
+                      <div
+                        key={i}
+                        className='flex-1 flex flex-col items-center gap-1'
+                      >
+                        <div className='text-[10px] text-zinc-400'>
+                          {day.plays > 0 ? `${day.plays}次` : ''}
+                        </div>
+                        <div
+                          className='w-full bg-accent/80 rounded-t transition-all duration-300'
+                          style={{ height: `${height}%` }}
+                        />
+                        <div className='text-[10px] text-zinc-400'>
+                          {day.date.slice(5)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* 熱門片源 */}
-        {stats.topSources.length > 0 && (
-          <div className='bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700/50'>
-            <div className='text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3'>
-              熱門片源 Top 5
-            </div>
-            <div className='space-y-3'>
-              {stats.topSources.map((item, i) => (
-                <div key={i} className='flex items-center gap-3'>
-                  <div className='w-6 text-xs text-zinc-400 font-medium'>
-                    {i + 1}
-                  </div>
-                  <div className='flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate'>
-                    {item.source}
-                  </div>
-                  <div className='flex-1 bg-zinc-200 dark:bg-zinc-700 rounded-full h-2 overflow-hidden'>
-                    <div
-                      className='h-full bg-accent/80 rounded-full transition-all duration-300'
-                      style={{
-                        width: `${
-                          (item.count / stats.topSources[0].count) * 100
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <div className='w-12 text-xs text-zinc-400 text-right'>
-                    {item.count} 次
-                  </div>
+        {stats.topSources.length > 0 &&
+          (() => {
+            const topSourceMaxCount = stats.topSources[0]?.count || 1;
+            return (
+              <div className='bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700/50'>
+                <div className='text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3'>
+                  熱門片源 Top 5
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <div className='space-y-3'>
+                  {stats.topSources.map((item, i) => (
+                    <div key={i} className='flex items-center gap-3'>
+                      <div className='w-6 text-xs text-zinc-400 font-medium'>
+                        {i + 1}
+                      </div>
+                      <div className='flex-1 text-sm text-zinc-700 dark:text-zinc-300 truncate'>
+                        {item.source}
+                      </div>
+                      <div className='flex-1 bg-zinc-200 dark:bg-zinc-700 rounded-full h-2 overflow-hidden'>
+                        <div
+                          className='h-full bg-accent/80 rounded-full transition-all duration-300'
+                          style={{
+                            width: `${(item.count / topSourceMaxCount) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <div className='w-12 text-xs text-zinc-400 text-right'>
+                        {item.count} 次
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
       </div>
 
       {/* 使用者列表 */}
@@ -240,7 +245,7 @@ export function PlayStatsPanel() {
             </tr>
           </thead>
           <tbody>
-            {stats.users
+            {[...stats.users]
               .sort((a, b) => b.totalWatchTime - a.totalWatchTime)
               .map((user) => (
                 <tr

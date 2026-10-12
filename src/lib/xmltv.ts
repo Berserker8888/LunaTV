@@ -62,7 +62,10 @@ export function consumeXmlTvBuffer(
       break;
     }
 
-    (result[channel] ||= []).push({ start, end, title });
+    if (!Object.prototype.hasOwnProperty.call(result, channel)) {
+      result[channel] = [];
+    }
+    result[channel].push({ start, end, title });
     if (budget) budget.remainingPrograms -= 1;
   }
 
@@ -76,13 +79,4 @@ export function consumeXmlTvBuffer(
   }
 
   return flush ? '' : input.slice(-PARTIAL_TAG_TAIL_LENGTH);
-}
-
-export function parseXmlTvText(
-  xml: string,
-  tvgIds: Iterable<string>
-): XmlTvPrograms {
-  const result: XmlTvPrograms = {};
-  consumeXmlTvBuffer(xml, new Set(tvgIds), result, true);
-  return result;
 }

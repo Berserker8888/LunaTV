@@ -9,6 +9,7 @@ import {
   sanitizeTitleAlias,
   setCachedCustomTitleAliases,
 } from './regional-title-aliases';
+import { invalidateSearchCache } from './search-cache';
 import { DEFAULT_SITE_NAME, isLegacyDefaultSiteName } from './site-defaults';
 import { getServerStorageType } from './storage-runtime';
 import { fetchSafeRemoteUrl, readResponseTextWithLimit } from './url-safety';
@@ -394,18 +395,23 @@ async function getInitConfig(
   } catch (e) {
     console.error('取得使用者列表失敗:', e);
   }
+  const ownerUsername =
+    process.env.USERNAME ||
+    (getServerStorageType() === 'localstorage' ? 'admin' : '');
   const allUsers = userNames
-    .filter((u) => u !== process.env.USERNAME)
+    .filter((u) => u !== ownerUsername)
     .map((u) => ({
       username: u,
       role: 'user',
       banned: false,
     }));
-  allUsers.unshift({
-    username: process.env.USERNAME!,
-    role: 'owner',
-    banned: false,
-  });
+  if (ownerUsername) {
+    allUsers.unshift({
+      username: ownerUsername,
+      role: 'owner',
+      banned: false,
+    });
+  }
   adminConfig.UserConfig.Users = allUsers as any;
 
   // 從設定檔中補充源資訊
@@ -583,7 +589,8 @@ export async function getFreshAdminUser(
 }
 
 export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
-  if (!process.env.USERNAME) {
+  const isLocalStorageMode = getServerStorageType() === 'localstorage';
+  if (!process.env.USERNAME && !isLocalStorageMode) {
     throw new Error('USERNAME environment variable is required');
   }
 
@@ -815,7 +822,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   );
 
   // 站長變更自檢
-  const ownerUser = process.env.USERNAME;
+  const ownerUser = process.env.USERNAME || (isLocalStorageMode ? 'admin' : '');
 
   // 去重
   const seenUsernames = new Set<string>();
@@ -840,13 +847,15 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     }
   });
   // 重新新增回站長
-  adminConfig.UserConfig.Users.unshift({
-    username: ownerUser!,
-    role: 'owner',
-    banned: false,
-    enabledApis: originOwnerCfg?.enabledApis || undefined,
-    tags: originOwnerCfg?.tags || undefined,
-  });
+  if (ownerUser) {
+    adminConfig.UserConfig.Users.unshift({
+      username: ownerUser,
+      role: 'owner',
+      banned: false,
+      enabledApis: originOwnerCfg?.enabledApis || undefined,
+      tags: originOwnerCfg?.tags || undefined,
+    });
+  }
 
   // 採集源去重
   const seenSourceKeys = new Set<string>();
@@ -914,6 +923,7 @@ export async function resetConfig() {
     await db.saveAdminConfig(adminConfig);
     cachedConfig = adminConfig;
     cachedConfigTimestamp = Date.now();
+    invalidateSearchCache();
   });
 
   return;
@@ -967,8 +977,8 @@ export function selectAvailableApiSites(
       }));
   }
 
-  // 未設定 enabledApis：依 tags 查找
-  if (userConfig.tags && userConfig.tags.length > 0 && config.UserConfig.Tags) {
+  // 未設定 enabledApis：依 tags 查找（即使 tags 對不到任何啟用源也回傳空陣列，不可 fail-open）
+  if (userConfig.tags && userConfig.tags.length > 0) {
     const enabledApisFromTags = new Set<string>();
 
     userConfig.tags.forEach((tagName) => {
@@ -980,19 +990,17 @@ export function selectAvailableApiSites(
       }
     });
 
-    if (enabledApisFromTags.size > 0) {
-      return allApiSites
-        .filter((s) => enabledApisFromTags.has(s.key))
-        .map((s) => ({
-          key: s.key,
-          name: s.name,
-          api: s.api,
-          detail: s.detail,
-        }));
-    }
+    return allApiSites
+      .filter((s) => enabledApisFromTags.has(s.key))
+      .map((s) => ({
+        key: s.key,
+        name: s.name,
+        api: s.api,
+        detail: s.detail,
+      }));
   }
 
-  // 未設定白名單也無有效 tags → 全部可用源
+  // 未設定白名單也未掛載任何 tags → 全部可用源
   return allApiSites;
 }
 
