@@ -67,6 +67,13 @@ const nextConfig = {
   },
 
   webpack(config) {
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+      '.mjs': ['.mts', '.mjs'],
+      '.cjs': ['.cts', '.cjs'],
+    };
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       net: false,
