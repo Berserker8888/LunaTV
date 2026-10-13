@@ -6,6 +6,15 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.7.1',
+    date: '2026-10-13',
+    content: `
+- 繁簡優化：新增台灣在地化片名轉換管道（toDisplayTitle），自動將大陸常見譯名（如「間諜過家家」、「瘋狂動物城」、「千與千尋」、「頭腦特工隊」、「速度與激情」等）在卡片與播放介面映射為台灣正式譯名（「間諜家家酒」、「動物方城市」、「神隱少女」、「腦筋急轉彎」、「玩命關頭」等）。
+- 豆瓣：統一客戶端與後端 API 的資料正規化與推薦篩選邏輯，修復客戶端分類標籤繁簡匹配問題。
+- 資料庫：抽取 Redis 與 Upstash 共用的鎖腳本、鍵名生成器與輔助函式至 redis-storage-common，大幅精簡儲存層維護成本。
+    `.trim(),
+  },
+  {
     version: 'v3.7.0',
     date: '2026-10-04',
     content: `

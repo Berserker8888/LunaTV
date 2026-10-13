@@ -1,6 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any,no-case-declarations */
-import { toSimplified } from './douban';
-import { DoubanItem, DoubanResult } from './types';
+/* eslint-disable no-case-declarations */
+import {
+  normalizeDoubanRecommendFilters,
+  parseDoubanCategoryItems,
+  parseDoubanRecommendItems,
+  parseDoubanSubjects,
+  toSimplified,
+} from './douban';
+import { DoubanResult } from './types';
 interface DoubanCategoriesParams {
   kind: 'tv' | 'movie';
   category: string;
@@ -247,19 +253,10 @@ export async function fetchDoubanCategories(
       useTencentCDN || useAliCDN ? '' : proxyUrl
     );
 
-    // 轉換數據格式
-    const list: DoubanItem[] = doubanData.items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      poster: item.pic?.normal || item.pic?.large || '',
-      rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
-      year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
-    }));
-
     return {
       code: 200,
       message: '取得成功',
-      list: list,
+      list: parseDoubanCategoryItems(doubanData),
     };
   } catch (error) {
     // 触發全局錯誤提示
@@ -410,19 +407,10 @@ export async function fetchDoubanList(
       useTencentCDN || useAliCDN ? '' : proxyUrl
     );
 
-    // 轉換數據格式
-    const list: DoubanItem[] = doubanData.subjects.map((item) => ({
-      id: item.id,
-      title: item.title,
-      poster: item.cover,
-      rate: item.rate,
-      year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
-    }));
-
     return {
       code: 200,
       message: '取得成功',
-      list: list,
+      list: parseDoubanSubjects(doubanData),
     };
   } catch (error) {
     // 触發全局錯誤提示
@@ -521,69 +509,8 @@ async function fetchDoubanRecommends(
   useAliCDN = false
 ): Promise<DoubanResult> {
   const { kind, pageLimit = 20, pageStart = 0 } = params;
-  let { category, format, region, year, platform, sort, label } = params;
-  if (category === 'all') {
-    category = '';
-  } else {
-    category = toSimplified(category || '');
-  }
-  if (format === 'all') {
-    format = '';
-  } else {
-    format = toSimplified(format || '');
-  }
-  if (label === 'all') {
-    // 保留 'all' 值，不轉換为空字符串，让 API 使用預設行为
-    label = '';
-  } else {
-    label = toSimplified(label || '');
-  }
-  if (region === 'all') {
-    region = '';
-  } else {
-    region = toSimplified(region || '');
-  }
-  if (year === 'all') {
-    year = '';
-  } else {
-    year = toSimplified(year || '');
-  }
-  if (platform === 'all') {
-    platform = '';
-  } else {
-    platform = toSimplified(platform || '');
-  }
-  if (sort === 'T') {
-    sort = '';
-  }
-
-  const selectedCategories = { 類型: category } as any;
-  if (format) {
-    selectedCategories['形式'] = format;
-  }
-  if (region) {
-    selectedCategories['地区'] = region;
-  }
-
-  const tags = [] as Array<string>;
-  if (category) {
-    tags.push(category);
-  }
-  if (!category && format) {
-    tags.push(format);
-  }
-  if (label) {
-    tags.push(label);
-  }
-  if (region) {
-    tags.push(region);
-  }
-  if (year) {
-    tags.push(year);
-  }
-  if (platform) {
-    tags.push(platform);
-  }
+  const { selectedCategories, tags, sort } =
+    normalizeDoubanRecommendFilters(params);
 
   const baseUrl = useTencentCDN
     ? `https://m.douban.cmliussss.net/rexxar/api/v2/${kind}/recommend`
@@ -607,26 +534,11 @@ async function fetchDoubanRecommends(
       target,
       useTencentCDN || useAliCDN ? '' : proxyUrl
     );
-    const list: DoubanItem[] = doubanData.items
-      .filter((item) => {
-        // 兼容不同類型的type值：movie, tv, 可能是其他如 anime
-        // 只要不是明確未知類型就保留
-        const validTypes = ['movie', 'tv'];
-        const itemType = item.type?.toString().toLowerCase();
-        return validTypes.includes(itemType) || !itemType;
-      })
-      .map((item) => ({
-        id: item.id,
-        title: item.title,
-        poster: item.pic?.normal || item.pic?.large || '',
-        rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
-        year: item.year,
-      }));
 
     return {
       code: 200,
       message: '取得成功',
-      list: list,
+      list: parseDoubanRecommendItems(doubanData),
     };
   } catch (error) {
     throw new Error(`取得豆瓣推薦數據失敗: ${(error as Error).message}`);

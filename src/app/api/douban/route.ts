@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 import { enforceRateLimit } from '@/lib/api-rate-limit';
 import { setBoundedMapValue } from '@/lib/bounded-map';
 import { getCacheTime } from '@/lib/config';
-import { doubanCacheKey, fetchDoubanData, toSimplified } from '@/lib/douban';
+import {
+  doubanCacheKey,
+  fetchDoubanData,
+  parseDoubanSubjects,
+  toSimplified,
+} from '@/lib/douban';
 import { DoubanItem, DoubanResult } from '@/lib/types';
 import {
   fetchSafeRemoteUrl,
@@ -102,13 +107,7 @@ export async function GET(request: Request) {
     const doubanData = await fetchDoubanData<DoubanApiResponse>(target);
 
     // 轉換數據格式（上游欄位缺失時回空陣列，不要拋錯）
-    const list: DoubanItem[] = (doubanData.subjects ?? []).map((item) => ({
-      id: item.id,
-      title: item.title,
-      poster: item.cover,
-      rate: item.rate,
-      year: '',
-    }));
+    const list: DoubanItem[] = parseDoubanSubjects(doubanData);
 
     const response: DoubanResult = {
       code: 200,

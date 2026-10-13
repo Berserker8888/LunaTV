@@ -5,6 +5,7 @@ import {
   isCjkSearchQuery,
   shouldPreserveSourceDisplayName,
   toDisplayLanguage,
+  toDisplayTitle,
   toSearchSimplified,
 } from './chinese';
 
@@ -173,5 +174,24 @@ describe('cleanQueryForApi', () => {
       '輝夜姬想讓人告白 天才們的戀愛頭腦戰'
     );
     expect(cleanQueryForApi('SPY×FAMILY')).toBe('SPY FAMILY');
+  });
+});
+
+describe('toDisplayTitle', () => {
+  it('將陸譯片名自動轉為台灣正體譯名', () => {
+    expect(toDisplayTitle('间谍过家家 第二季')).toBe('間諜家家酒 第二季');
+    expect(toDisplayTitle('疯狂动物城')).toBe('動物方城市');
+    expect(toDisplayTitle('头脑特工队2')).toBe('腦筋急轉彎2');
+    expect(toDisplayTitle('千与千寻')).toBe('神隱少女');
+    expect(toDisplayTitle('速度与激情10')).toBe('玩命關頭10');
+    expect(toDisplayTitle('指环王1：魔戒现身')).toBe('魔戒1：魔戒現身');
+    expect(toDisplayTitle('生化危机：终章')).toBe('惡靈古堡：終章');
+    expect(toDisplayTitle('超能陆战队')).toBe('大英雄天團');
+  });
+
+  it('原名已是台灣譯名或無對應別名時維持正常台灣正體中文轉換', () => {
+    expect(toDisplayTitle('間諜家家酒')).toBe('間諜家家酒');
+    expect(toDisplayTitle('葬送的芙莉莲')).toBe('葬送的芙莉蓮');
+    expect(toDisplayTitle('钢之炼金术师')).toBe('鋼之鍊金術師');
   });
 });

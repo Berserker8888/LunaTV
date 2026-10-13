@@ -1,6 +1,7 @@
 import { setBoundedMapValue } from './bounded-map';
 import { readResponseTextWithLimit } from './response-limit';
 import { convertT2S } from './s2t';
+import type { DoubanItem } from './types';
 
 /**
  * 同步 64 位雜湊（cyrb53）：douban.ts 會被客戶端 bundle 直接引用
@@ -223,4 +224,128 @@ export function toSimplified(str: string): string {
   } catch {
     return str;
   }
+}
+
+export interface DoubanCategoryRawResponse {
+  total?: number;
+  items?: Array<{
+    id: string;
+    title: string;
+    card_subtitle?: string;
+    pic?: {
+      large?: string;
+      normal?: string;
+    };
+    rating?: {
+      value?: number;
+    };
+  }>;
+}
+
+export function parseDoubanCategoryItems(
+  data: DoubanCategoryRawResponse | null | undefined
+): DoubanItem[] {
+  return (data?.items ?? []).map((item) => ({
+    id: item.id,
+    title: item.title,
+    poster: item.pic?.normal || item.pic?.large || '',
+    rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
+    year: item.card_subtitle?.match(/(\d{4})/)?.[1] || '',
+  }));
+}
+
+export interface DoubanSubjectsRawResponse {
+  total?: number;
+  subjects?: Array<{
+    id: string;
+    title: string;
+    cover: string;
+    rate: string;
+  }>;
+}
+
+export function parseDoubanSubjects(
+  data: DoubanSubjectsRawResponse | null | undefined
+): DoubanItem[] {
+  return (data?.subjects ?? []).map((item) => ({
+    id: item.id,
+    title: item.title,
+    poster: item.cover,
+    rate: item.rate,
+    year: '',
+  }));
+}
+
+export interface DoubanRecommendRawResponse {
+  total?: number;
+  items?: Array<{
+    id: string;
+    title: string;
+    year?: string;
+    type?: string;
+    pic?: {
+      large?: string;
+      normal?: string;
+    };
+    rating?: {
+      value?: number;
+    };
+  }>;
+}
+
+export function parseDoubanRecommendItems(
+  data: DoubanRecommendRawResponse | null | undefined
+): DoubanItem[] {
+  return (data?.items ?? [])
+    .filter((item) => item.type === 'movie' || item.type === 'tv')
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      poster: item.pic?.normal || item.pic?.large || '',
+      rate: item.rating?.value ? item.rating.value.toFixed(1) : '',
+      year: item.year || '',
+    }));
+}
+
+export interface DoubanRecommendFilterParams {
+  category?: string;
+  format?: string;
+  region?: string;
+  year?: string;
+  platform?: string;
+  sort?: string;
+  label?: string;
+}
+
+export function normalizeDoubanRecommendFilters(
+  raw: DoubanRecommendFilterParams
+): {
+  selectedCategories: Record<string, string>;
+  tags: string[];
+  sort: string;
+} {
+  const norm = (val?: string) =>
+    !val || val === 'all' ? '' : toSimplified(val);
+
+  const category = norm(raw.category);
+  const format = norm(raw.format);
+  const region = norm(raw.region);
+  const year = norm(raw.year);
+  const platform = norm(raw.platform);
+  const label = norm(raw.label);
+  const sort = raw.sort === 'T' || !raw.sort ? '' : raw.sort;
+
+  const selectedCategories: Record<string, string> = { 类型: category };
+  if (format) selectedCategories['形式'] = format;
+  if (region) selectedCategories['地区'] = region;
+
+  const tags: string[] = [];
+  if (category) tags.push(category);
+  if (!category && format) tags.push(format);
+  if (label) tags.push(label);
+  if (region) tags.push(region);
+  if (year) tags.push(year);
+  if (platform) tags.push(platform);
+
+  return { selectedCategories, tags, sort };
 }

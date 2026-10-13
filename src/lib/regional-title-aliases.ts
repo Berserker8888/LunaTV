@@ -1,3 +1,5 @@
+import { convertS2T } from './s2t';
+
 export interface RegionalTitleAlias {
   tw: string;
   cn: string;
@@ -335,4 +337,58 @@ export function getRegionalMainlandTitles(
     return [alias.cn, ...(alias.alternatives || [])].map(replaceTitle);
   }
   return [];
+}
+
+const reverseAliasesCache = new WeakMap<
+  RegionalTitleAlias[],
+  Array<{ pattern: string; tw: string }>
+>();
+
+/**
+ * 將片名中的大陸譯名（例如「间谍过家家」、「疯狂动物城」、「头脑特工队」等）
+ * 替換為台灣正體譯名（如「間諜家家酒」、「動物方城市」、「腦筋急轉彎」）。
+ */
+export function getTaiwanDisplayTitle(
+  title: string,
+  custom: RegionalTitleAlias[] = getRuntimeCustomAliases()
+): string {
+  if (!title) return '';
+  const aliases = mergeAndSortAliases(custom);
+  let reverseMap = reverseAliasesCache.get(aliases);
+  if (!reverseMap) {
+    const list: Array<{ pattern: string; tw: string }> = [];
+    const seenPatterns = new Set<string>();
+
+    for (const alias of aliases) {
+      if (!alias.tw || !alias.cn) continue;
+      if (alias.tw === alias.cn) continue;
+
+      const candidates = [alias.cn, ...(alias.alternatives || [])];
+      for (const cand of candidates) {
+        if (!cand || cand === alias.tw) continue;
+        if (!seenPatterns.has(cand)) {
+          seenPatterns.add(cand);
+          list.push({ pattern: cand, tw: alias.tw });
+        }
+        // 繁體形態（例如上游回傳「間諜過家家」繁體形式）
+        const tradCand = convertS2T(cand);
+        if (tradCand !== alias.tw && !seenPatterns.has(tradCand)) {
+          seenPatterns.add(tradCand);
+          list.push({ pattern: tradCand, tw: alias.tw });
+        }
+      }
+    }
+    // 由長到短排序，確保較長名稱優先替換（例如「機動戰士高達」優先於「高達」）
+    list.sort((a, b) => b.pattern.length - a.pattern.length);
+    reverseMap = list;
+    reverseAliasesCache.set(aliases, reverseMap);
+  }
+
+  let result = title;
+  for (const { pattern, tw } of reverseMap) {
+    if (result.includes(pattern)) {
+      result = result.split(pattern).join(tw);
+    }
+  }
+  return result;
 }

@@ -20,7 +20,7 @@ import React, {
   useState,
 } from 'react';
 
-import { toDisplayLanguage } from '@/lib/chinese';
+import { toDisplayLanguage, toDisplayTitle } from '@/lib/chinese';
 import {
   deleteFavorite,
   deletePlayRecord,
@@ -146,8 +146,8 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(
     }));
 
     const actualTitle = title;
-    // 顯示用標題走繁簡轉換（與播放頁一致）；跳轉／收藏／搜尋邏輯仍用原始標題
-    const displayTitle = toDisplayLanguage(title);
+    // 顯示用標題走繁簡與兩岸譯名轉換（與播放頁一致）；跳轉／收藏／搜尋邏輯仍用原始標題
+    const displayTitle = toDisplayTitle(title);
     const actualPoster = poster;
     const actualSource =
       !source || source === 'undefined' || source === 'null' ? '' : source;

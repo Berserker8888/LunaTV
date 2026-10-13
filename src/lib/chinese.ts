@@ -1,3 +1,4 @@
+import { getTaiwanDisplayTitle } from './regional-title-aliases';
 import { convertS2T, convertT2S } from './s2t';
 
 // This module provides Traditional Chinese conversion utilities for search
@@ -386,6 +387,17 @@ export function toDisplayLanguage(text: string): string {
     result = result.split(simp).join(trad);
   }
   return prefix + convertS2T(result);
+}
+
+/**
+ * 影視標題專用顯示轉換：
+ * 1. 優先將大陸譯名（例如「间谍过家家」、「疯狂动物城」、「头脑特工队」）轉換為台灣正體譯名（如「間諜家家酒」、「動物方城市」、「腦筋急轉彎」）。
+ * 2. 接著進行台灣用語修正與 OpenCC 繁體中文轉換。
+ */
+export function toDisplayTitle(text: string): string {
+  if (!text) return '';
+  const taiwanTitle = getTaiwanDisplayTitle(text);
+  return toDisplayLanguage(taiwanTitle);
 }
 
 export function cleanQueryForApi(rawQuery: string): string {

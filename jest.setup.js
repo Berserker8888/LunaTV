@@ -59,4 +59,3 @@ if (typeof globalThis.MessagePort === 'undefined') {
 
 // Polyfill USERNAME env var for Linux/CI environments
 process.env.USERNAME = process.env.USERNAME || 'admin';
-

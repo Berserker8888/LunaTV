@@ -5,38 +5,27 @@ import { Redis } from '@upstash/redis';
 import { AdminConfig } from './admin.types';
 import type { BangumiAliasCacheEntry } from './bangumi-alias-storage';
 import { hashPassword, isHashed, verifyPassword } from './password';
+import {
+  adminConfigKey,
+  bangumiAliasHashKey,
+  ensureString,
+  ensureStringArray,
+  favHashKey,
+  LOCK_RELEASE_RECEIPT_TTL_MS,
+  migrationKey,
+  prHashKey,
+  pwdMigrationKey,
+  RELEASE_LOCK_SCRIPT,
+  RENEW_LOCK_SCRIPT,
+  SEARCH_HISTORY_LIMIT,
+  searchHistoryKey,
+  skipField,
+  skipHashKey,
+  userPwdKey,
+  usersSetKey,
+} from './redis-storage-common';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 import { reconcileUserIndex } from './user-index';
-
-// 搜索歷史最大條數
-const SEARCH_HISTORY_LIMIT = 20;
-const LOCK_RELEASE_RECEIPT_TTL_MS = 60_000;
-const RENEW_LOCK_SCRIPT = `
-if redis.call('GET', KEYS[1]) == ARGV[1] then
-  return redis.call('PEXPIRE', KEYS[1], ARGV[2])
-end
-return 0
-`;
-const RELEASE_LOCK_SCRIPT = `
-if redis.call('GET', KEYS[1]) == ARGV[1] then
-  redis.call('DEL', KEYS[1])
-  redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2])
-  return 1
-end
-if redis.call('GET', KEYS[2]) == ARGV[1] then
-  return 1
-end
-return 0
-`;
-
-// 數據類型轉換辅助函數
-function ensureString(value: any): string {
-  return String(value);
-}
-
-function ensureStringArray(value: any[]): string[] {
-  return value.map((item) => String(item));
-}
 
 // 新增Upstash Redis操作重試包装器
 async function withRetry<T>(
@@ -164,7 +153,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 播放記錄 ----------
   private prHashKey(user: string) {
-    return `u:${user}:pr`; // 一個使用者的所有播放記錄存在一個 Hash 中
+    return prHashKey(user);
   }
 
   async getPlayRecord(
@@ -209,7 +198,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 收藏 ----------
   private favHashKey(user: string) {
-    return `u:${user}:fav`; // 一個使用者的所有收藏存在一個 Hash 中
+    return favHashKey(user);
   }
 
   async getFavorite(userName: string, key: string): Promise<Favorite | null> {
@@ -249,7 +238,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 使用者注冊 / 登錄 ----------
   private userPwdKey(user: string) {
-    return `u:${user}:pwd`;
+    return userPwdKey(user);
   }
 
   async registerUser(userName: string, password: string): Promise<void> {
@@ -312,7 +301,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 搜索歷史 ----------
   private shKey(user: string) {
-    return `u:${user}:sh`; // u:username:sh
+    return searchHistoryKey(user);
   }
 
   async getSearchHistory(userName: string): Promise<string[]> {
@@ -344,7 +333,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 取得全部使用者 ----------
   private usersSetKey() {
-    return 'sys:users';
+    return usersSetKey();
   }
 
   async getAllUsers(): Promise<string[]> {
@@ -370,7 +359,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 管理员設定 ----------
   private adminConfigKey() {
-    return 'admin:config';
+    return adminConfigKey();
   }
 
   async getAdminConfig(): Promise<AdminConfig | null> {
@@ -384,11 +373,11 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 跳過片头片尾設定 ----------
   private skipHashKey(user: string) {
-    return `u:${user}:skip`; // 一個使用者的所有跳過設定存在一個 Hash 中
+    return skipHashKey(user);
   }
 
   private skipField(source: string, id: string) {
-    return `${source}+${id}`;
+    return skipField(source, id);
   }
 
   async getSkipConfig(
@@ -439,7 +428,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 數據遷移：旧扁平 key → Hash 結构 ----------
   private migrationKey() {
-    return 'sys:migration:hash_v2';
+    return migrationKey();
   }
 
   async migrateData(): Promise<void> {
@@ -567,7 +556,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // ---------- 密碼遷移：明文 → 加盐哈希 ----------
   private pwdMigrationKey() {
-    return 'sys:migration:pwd_hash_v1';
+    return pwdMigrationKey();
   }
 
   async migratePasswords(): Promise<void> {
@@ -605,7 +594,7 @@ export class UpstashRedisStorage implements IStorage {
 
   // 清空所有數據
   private bangumiAliasHashKey() {
-    return 'sys:bangumi_aliases';
+    return bangumiAliasHashKey();
   }
 
   async getBangumiAliasCache(

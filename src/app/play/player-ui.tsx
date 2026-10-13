@@ -3,7 +3,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-import { toDisplayLanguage } from '@/lib/chinese';
+import { toDisplayLanguage, toDisplayTitle } from '@/lib/chinese';
 import { SearchResult } from '@/lib/types';
 import { formatYear, getProxiedImageUrl, processImageUrl } from '@/lib/utils';
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog';
@@ -322,7 +322,7 @@ export function VideoDetailsPanel({
     setFailedCover(null);
   }
   const displayCover = videoCover || tmdbPoster;
-  const displayTitle = toDisplayLanguage(videoTitle) || '影片標題';
+  const displayTitle = toDisplayTitle(videoTitle) || '影片標題';
   const handleTmdbPoster = useCallback((posterUrl: string) => {
     setTmdbPoster(posterUrl);
   }, []);
