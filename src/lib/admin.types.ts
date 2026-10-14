@@ -47,6 +47,7 @@ export interface AdminConfig {
     detail?: string;
     from: 'config' | 'custom';
     disabled?: boolean;
+    tag?: string; // 自訂線路標籤（如：4K、秒播、無廣告、備用）
   }[];
   CustomCategories: {
     name?: string;

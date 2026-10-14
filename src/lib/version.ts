@@ -6,6 +6,15 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.7.2',
+    date: '2026-10-15',
+    content: `
+- 廣告過濾：升級 M3U8 切片廣告智慧過濾演算法，引進多數決網域分群分析（Dominant Domain Clustering）與 Discontinuity 短切片孤島智慧切除，解決中途插播廣告（Mid-roll ads）。
+- 字典庫：擴充在地化片名字典庫（REGIONAL_TITLE_ALIASES），新增數十部高頻熱門影劇／動漫差異片名，提升繁體搜尋與呈現體驗。
+- 播放源：新增線路自訂標籤功能，管理者可在後台為各播放源自訂標籤（如「4K」、「秒播」、「無廣告」、「備用」等），並同步呈現於播放器換源介面。
+    `.trim(),
+  },
+  {
     version: 'v3.7.1',
     date: '2026-10-13',
     content: `

@@ -130,6 +130,7 @@ export interface SearchResult {
   episode_count?: number;
   source: string;
   source_name: string;
+  source_tag?: string;
   class?: string;
   year: string;
   desc?: string;

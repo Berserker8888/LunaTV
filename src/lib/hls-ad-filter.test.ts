@@ -127,4 +127,105 @@ describe('filterAdsFromM3U8Detailed', () => {
     expect(result.content).toContain('seg-2.ts');
     expect(result.content).toContain('seg-3.ts');
   });
+
+  it('detects and removes mid-roll ads from foreign ad domain between discontinuities', () => {
+    // 模擬 16 個主切片在 cdn.video.com，中途夾了 2 個來自 ad.server.com 的廣告切片
+    const mainLines: string[] = [];
+    for (let i = 1; i <= 8; i++) {
+      mainLines.push('#EXTINF:6,', `https://cdn.video.com/movie/seg-${i}.ts`);
+    }
+
+    const midRollAdLines = [
+      '#EXT-X-DISCONTINUITY',
+      '#EXTINF:5,',
+      'https://ad.server.com/promo/ad-1.ts',
+      '#EXTINF:5,',
+      'https://ad.server.com/promo/ad-2.ts',
+      '#EXT-X-DISCONTINUITY',
+    ];
+
+    const afterLines: string[] = [];
+    for (let i = 9; i <= 16; i++) {
+      afterLines.push('#EXTINF:6,', `https://cdn.video.com/movie/seg-${i}.ts`);
+    }
+
+    const playlist = [
+      '#EXTM3U',
+      '#EXT-X-VERSION:3',
+      ...mainLines,
+      ...midRollAdLines,
+      ...afterLines,
+      '#EXT-X-ENDLIST',
+    ].join('\n');
+
+    const result = filterAdsFromM3U8Detailed(playlist);
+
+    expect(result.removedSegments).toBe(2);
+    expect(result.content).not.toContain('ad.server.com');
+    expect(result.content).toContain('seg-1.ts');
+    expect(result.content).toContain('seg-16.ts');
+    expect(result.content).toContain('#EXT-X-ENDLIST');
+  });
+
+  it('detects and removes mid-roll ads using guanggao and ts-ad patterns', () => {
+    const playlist = [
+      '#EXTM3U',
+      '#EXTINF:6,',
+      'https://cdn.video.com/seg-1.ts',
+      '#EXTINF:6,',
+      'https://cdn.video.com/guanggao/ad01.ts',
+      '#EXTINF:6,',
+      'https://cdn.video.com/cache-ad/ts-ad-02.ts',
+      '#EXTINF:6,',
+      'https://cdn.video.com/seg-2.ts',
+    ].join('\n');
+
+    const result = filterAdsFromM3U8Detailed(playlist);
+
+    expect(result.removedSegments).toBe(2);
+    expect(result.content).not.toContain('guanggao');
+    expect(result.content).not.toContain('cache-ad');
+    expect(result.content).toContain('seg-1.ts');
+    expect(result.content).toContain('seg-2.ts');
+  });
+
+  it('removes mid-roll discontinuity island with different path prefix', () => {
+    // 16 個主切片在 /2026/ep1/，中途被 /adv/ 夾擊
+    const mainLines: string[] = [];
+    for (let i = 1; i <= 8; i++) {
+      mainLines.push(
+        '#EXTINF:6,',
+        `https://cdn.video.com/2026/ep1/seg-${i}.ts`
+      );
+    }
+    const adIsland = [
+      '#EXT-X-DISCONTINUITY',
+      '#EXTINF:4.5,',
+      'https://cdn.video.com/ads/sponsor_promo_1.ts',
+      '#EXTINF:4.5,',
+      'https://cdn.video.com/ads/sponsor_promo_2.ts',
+      '#EXT-X-DISCONTINUITY',
+    ];
+    const afterLines: string[] = [];
+    for (let i = 9; i <= 16; i++) {
+      afterLines.push(
+        '#EXTINF:6,',
+        `https://cdn.video.com/2026/ep1/seg-${i}.ts`
+      );
+    }
+
+    const playlist = [
+      '#EXTM3U',
+      ...mainLines,
+      ...adIsland,
+      ...afterLines,
+      '#EXT-X-ENDLIST',
+    ].join('\n');
+
+    const result = filterAdsFromM3U8Detailed(playlist);
+    expect(result.removedSegments).toBe(2);
+    expect(result.content).not.toContain('sponsor_promo');
+    expect(result.content).toContain('seg-1.ts');
+    expect(result.content).toContain('seg-16.ts');
+  });
 });

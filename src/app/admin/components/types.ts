@@ -21,6 +21,7 @@ export interface DataSource {
   detail?: string;
   disabled?: boolean;
   from: 'config' | 'custom';
+  tag?: string;
 }
 
 // 直播源資料類型

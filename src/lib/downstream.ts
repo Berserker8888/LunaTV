@@ -255,6 +255,7 @@ async function searchWithCache(
             episode_count: episodeCount,
             source: apiSite.key,
             source_name: apiSite.name,
+            ...(apiSite.tag ? { source_tag: apiSite.tag } : {}),
             class: item.vod_class,
             // 保持原語意：vod_year 為空／缺漏時填入哨兵值 'unknown'。
             // String() 只是讓數字型 vod_year 不再拋錯（原本會整批失敗）。
@@ -502,6 +503,7 @@ async function fetchDetailFromApi(
       episode_count: episodes.length,
       source: apiSite.key,
       source_name: apiSite.name,
+      ...(apiSite.tag ? { source_tag: apiSite.tag } : {}),
       class: videoDetail.vod_class,
       year: videoDetail.vod_year
         ? String(videoDetail.vod_year).match(/\d{4}/)?.[0] || ''
@@ -598,6 +600,7 @@ async function handleSpecialSourceDetail(
       episode_count: matches.length,
       source: apiSite.key,
       source_name: apiSite.name,
+      ...(apiSite.tag ? { source_tag: apiSite.tag } : {}),
       class: '',
       year: yearText,
       desc: descText,

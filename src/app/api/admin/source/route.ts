@@ -26,7 +26,8 @@ type Action =
   | 'sort'
   | 'batch_disable'
   | 'batch_enable'
-  | 'batch_delete';
+  | 'batch_delete'
+  | 'update_tag';
 
 interface BaseBody {
   action?: Action;
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
       'batch_disable',
       'batch_enable',
       'batch_delete',
+      'update_tag',
     ];
     if (!action || !ACTIONS.includes(action)) {
       return NextResponse.json({ error: '參數格式錯誤' }, { status: 400 });
@@ -97,11 +99,12 @@ export async function POST(request: NextRequest) {
 
         switch (action) {
           case 'add': {
-            const { key, name, api, detail } = body as {
+            const { key, name, api, detail, tag } = body as {
               key?: string;
               name?: string;
               api?: string;
               detail?: string;
+              tag?: string;
             };
             if (!key || !name || !api) {
               return NextResponse.json(
@@ -133,9 +136,31 @@ export async function POST(request: NextRequest) {
               name: name.trim(),
               api: api.trim(),
               detail: detail?.trim() || undefined,
+              tag:
+                typeof tag === 'string' && tag.trim()
+                  ? tag.trim().slice(0, 30)
+                  : undefined,
               from: 'custom',
               disabled: false,
             });
+            break;
+          }
+          case 'update_tag': {
+            const { key, tag } = body as { key?: string; tag?: string };
+            if (!isValidSourceKey(key)) {
+              return NextResponse.json(
+                { error: '缺少 key 參數' },
+                { status: 400 }
+              );
+            }
+            const entry = adminConfig.SourceConfig.find((s) => s.key === key);
+            if (!entry) {
+              return NextResponse.json({ error: '源不存在' }, { status: 404 });
+            }
+            entry.tag =
+              typeof tag === 'string' && tag.trim()
+                ? tag.trim().slice(0, 30)
+                : undefined;
             break;
           }
           case 'disable': {

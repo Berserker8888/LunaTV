@@ -878,12 +878,17 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                       </div>
 
                       {/* 次標：統一顯示「N 集」，過濾重複主片名，僅保留版本標籤（如國語、4K） */}
-                      <div className='flex items-center gap-2 mb-2 min-w-0'>
+                      <div className='flex items-center gap-2 mb-2 min-w-0 flex-wrap'>
                         <span className='text-[12px] font-semibold text-zinc-300 shrink-0 tabular-nums px-1.5 py-0.5 rounded bg-zinc-800/80 border border-white/5'>
                           {displayedEpisodes > 0
                             ? `${displayedEpisodes} 集`
                             : '單集'}
                         </span>
+                        {source.source_tag ? (
+                          <span className='text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 font-medium'>
+                            {toDisplayLanguage(source.source_tag)}
+                          </span>
+                        ) : null}
                         {extraTag ? (
                           <span className='text-[11px] px-1.5 py-0.5 rounded bg-accent/10 text-accent shrink-0 truncate max-w-[120px] font-medium'>
                             {toDisplayLanguage(extraTag)}

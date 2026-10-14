@@ -19,6 +19,7 @@ export interface ApiSite {
   api: string;
   name: string;
   detail?: string;
+  tag?: string;
 }
 
 export interface LiveCfg {
@@ -974,6 +975,7 @@ export function selectAvailableApiSites(
         name: s.name,
         api: s.api,
         detail: s.detail,
+        tag: s.tag,
       }));
   }
 
@@ -997,6 +999,7 @@ export function selectAvailableApiSites(
         name: s.name,
         api: s.api,
         detail: s.detail,
+        tag: s.tag,
       }));
   }
 

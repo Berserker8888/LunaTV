@@ -52,6 +52,7 @@ const DraggableRow = ({
   isLoading,
   onSelectSource,
   onToggleEnable,
+  onUpdateTag,
   onDelete,
 }: {
   source: DataSource;
@@ -60,10 +61,30 @@ const DraggableRow = ({
   isLoading: (key: string) => boolean;
   onSelectSource: (key: string, checked: boolean) => void;
   onToggleEnable: (key: string) => void;
+  onUpdateTag: (key: string, tag: string) => void;
   onDelete: (key: string) => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: source.key });
+
+  const [isEditingTag, setIsEditingTag] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+
+  const handleStartEdit = () => {
+    setTagInput(source.tag || '');
+    setIsEditingTag(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingTag(false);
+  };
+
+  const handleSaveTag = () => {
+    setIsEditingTag(false);
+    if (tagInput.trim() !== (source.tag || '')) {
+      onUpdateTag(source.key, tagInput.trim());
+    }
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -94,6 +115,56 @@ const DraggableRow = ({
       </td>
       <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
         {source.name}
+      </td>
+      <td className='px-4 py-4 whitespace-nowrap text-sm'>
+        {isEditingTag ? (
+          <div className='flex items-center space-x-1'>
+            <input
+              type='text'
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTag();
+                if (e.key === 'Escape') handleCancelEdit();
+              }}
+              placeholder='例：4K、秒播'
+              className='w-20 px-1.5 py-0.5 text-xs border border-blue-500 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none'
+              autoFocus
+            />
+            <button
+              onClick={handleSaveTag}
+              className='text-xs text-blue-600 dark:text-blue-400 hover:underline px-1'
+            >
+              存
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              className='text-xs text-zinc-400 hover:text-zinc-600 px-1'
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className='flex items-center space-x-1 group'>
+            {source.tag ? (
+              <span
+                onClick={handleStartEdit}
+                className='cursor-pointer inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 hover:opacity-80 transition-opacity'
+                title='點擊修改標籤'
+              >
+                {source.tag}
+              </span>
+            ) : (
+              <span
+                onClick={handleStartEdit}
+                className='cursor-pointer text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors'
+                title='點擊設定標籤'
+              >
+                + 設標籤
+              </span>
+            )}
+          </div>
+        )}
       </td>
       <td className='px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100'>
         {source.key}
@@ -188,6 +259,7 @@ export const VideoSourceConfig = ({
     key: '',
     api: '',
     detail: '',
+    tag: '',
     disabled: false,
     from: 'config',
   });
@@ -349,6 +421,14 @@ export const VideoSourceConfig = ({
     });
   };
 
+  const handleUpdateTag = (key: string, tag: string) => {
+    withLoading(`updateTag_${key}`, () =>
+      callSourceApi({ action: 'update_tag', key, tag })
+    ).catch(() => {
+      console.error('操作失敗', 'update_tag', key, tag);
+    });
+  };
+
   const handleAddSource = () => {
     if (!newSource.name || !newSource.key || !newSource.api) return;
     withLoading('addSource', async () => {
@@ -358,12 +438,14 @@ export const VideoSourceConfig = ({
         name: newSource.name,
         api: newSource.api,
         detail: newSource.detail,
+        tag: newSource.tag,
       });
       setNewSource({
         name: '',
         key: '',
         api: '',
         detail: '',
+        tag: '',
         disabled: false,
         from: 'custom',
       });
@@ -986,7 +1068,7 @@ export const VideoSourceConfig = ({
 
       {showAddForm && (
         <div className='p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-4'>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
             <input
               type='text'
               placeholder='名稱'
@@ -1020,6 +1102,15 @@ export const VideoSourceConfig = ({
               value={newSource.detail}
               onChange={(e) =>
                 setNewSource((prev) => ({ ...prev, detail: e.target.value }))
+              }
+              className='px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+            />
+            <input
+              type='text'
+              placeholder='標籤（選填，如：4K、秒播、無廣告）'
+              value={newSource.tag || ''}
+              onChange={(e) =>
+                setNewSource((prev) => ({ ...prev, tag: e.target.value }))
               }
               className='px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
             />
@@ -1068,6 +1159,9 @@ export const VideoSourceConfig = ({
               <th className='px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider'>
                 名稱
               </th>
+              <th className='px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider'>
+                標籤
+              </th>
               <th className='px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider'>
                 Key
               </th>
@@ -1109,6 +1203,7 @@ export const VideoSourceConfig = ({
                     isLoading={isLoading}
                     onSelectSource={handleSelectSource}
                     onToggleEnable={handleToggleEnable}
+                    onUpdateTag={handleUpdateTag}
                     onDelete={handleDelete}
                   />
                 ))}
