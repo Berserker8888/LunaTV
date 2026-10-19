@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.7.5',
+    date: '2026-10-20',
+    content: `
+- 播放架構：移除 Emby 影庫設定與相關非同步查詢邏輯，全面回歸輕量、高效的純 CMS 聚合播放架構。
+- 使用者介面：移除使用者選單中的「登出所有裝置」選項，簡化登出互動流程。
+    `.trim(),
+  },
+  {
     version: 'v3.7.4',
     date: '2026-10-19',
     content: `

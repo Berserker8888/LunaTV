@@ -66,18 +66,6 @@ export interface AdminConfig {
     channelNumber?: number;
     disabled?: boolean;
   }[];
-  EmbyConfig?: EmbyConfig;
-}
-
-export interface EmbyConfig {
-  enabled: boolean;
-  serverUrl: string;
-  username: string;
-  password?: string;
-  apiKey?: string;
-  userId?: string;
-  name?: string;
-  tag?: string;
 }
 
 export interface AdminConfigResult {
