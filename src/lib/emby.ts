@@ -7,7 +7,7 @@ import type { SearchResult } from './types';
 const EMBY_CLIENT_NAME = 'LunaTV';
 const EMBY_DEVICE_NAME = 'Web';
 const EMBY_DEVICE_ID = 'lunatv-web-client';
-const EMBY_CLIENT_VERSION = '3.7.3';
+const EMBY_CLIENT_VERSION = '3.7.4';
 const AUTH_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 小時
 const EMBY_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -52,8 +52,25 @@ export async function getEmbyAuth(
   }
 
   // 若使用者已直接提供 apiKey 與 userId，直接使用
-  if (config.apiKey && config.userId) {
-    return { token: config.apiKey, userId: config.userId };
+  if (config.apiKey) {
+    if (config.userId) {
+      return { token: config.apiKey, userId: config.userId };
+    }
+    // 若有 apiKey 但未填 userId，自動嘗試查詢可用使用者 ID
+    try {
+      const usersRes = await fetch(
+        `${serverUrl}/Users?api_key=${encodeURIComponent(config.apiKey)}`,
+        { headers: { Accept: 'application/json' } }
+      );
+      if (usersRes.ok) {
+        const users = await usersRes.json();
+        if (Array.isArray(users) && users.length > 0 && users[0].Id) {
+          return { token: config.apiKey, userId: String(users[0].Id) };
+        }
+      }
+    } catch (err) {
+      logger.warn('自動查詢 Emby User ID 失敗:', err);
+    }
   }
 
   const cacheKey = `${serverUrl}:${config.username || ''}`;
@@ -231,9 +248,10 @@ export async function searchFromEmby(
 
     const params = new URLSearchParams({
       searchTerm: query,
-      IncludeItemTypes: 'Movie,Series',
+      IncludeItemTypes: 'Movie,Series,Episode',
       Recursive: 'true',
-      Fields: 'Overview,ProductionYear,PrimaryImageAspectRatio,Path,Genres',
+      Fields:
+        'Overview,ProductionYear,PrimaryImageAspectRatio,Path,Genres,ChildCount,RecursiveItemCount',
       Limit: '30',
     });
 
@@ -298,6 +316,7 @@ interface EmbyItem {
   ProductionYear?: number;
   Overview?: string;
   ChildCount?: number;
+  RecursiveItemCount?: number;
 }
 
 function mapEmbyItemsToSearchResults(
@@ -308,9 +327,16 @@ function mapEmbyItemsToSearchResults(
   config: EmbyConfig
 ): SearchResult[] {
   return items.map((item) => {
-    const isMovie = item.Type === 'Movie';
+    const isMovie =
+      item.Type === 'Movie' || item.Type === 'Episode' || item.Type === 'Video';
     const streamUrl = getEmbyStreamUrl(serverUrl, item.Id, token);
     const poster = getEmbyPosterUrl(serverUrl, item.Id, token);
+    const count = item.RecursiveItemCount || item.ChildCount;
+    const episodeCount = isMovie
+      ? 1
+      : typeof count === 'number' && count > 0
+        ? count
+        : 0;
 
     return {
       id: String(item.Id),
@@ -318,7 +344,7 @@ function mapEmbyItemsToSearchResults(
       poster,
       episodes: isMovie ? [streamUrl] : [],
       episodes_titles: isMovie ? ['正片'] : [],
-      episode_count: isMovie ? 1 : item.ChildCount || undefined,
+      episode_count: episodeCount,
       source: apiSite.key || 'emby',
       source_name: apiSite.name || config.name || 'Emby 影庫',
       source_tag: apiSite.tag || config.tag || '4K原畫',
@@ -327,6 +353,13 @@ function mapEmbyItemsToSearchResults(
       type_name: isMovie ? '電影' : '影集',
     };
   });
+}
+
+interface EmbyEpisodeItem {
+  Id: string | number;
+  Name?: string;
+  IndexNumber?: number;
+  ParentIndexNumber?: number;
 }
 
 /**
@@ -349,23 +382,46 @@ export async function getDetailFromEmby(
   const serverUrl = cleanBaseUrl(embyConfig.serverUrl);
 
   const itemUrl = `${serverUrl}/Users/${userId}/Items/${id}?Fields=Overview,ProductionYear,Path,Genres`;
-  const res = await fetch(itemUrl, {
-    headers: {
-      Accept: 'application/json',
-      'X-Emby-Token': token,
-      'X-Emby-Authorization': getEmbyAuthHeader(token),
-    },
-  });
+  let item: EmbyItem | null = null;
+  try {
+    const res = await fetch(itemUrl, {
+      headers: {
+        Accept: 'application/json',
+        'X-Emby-Token': token,
+        'X-Emby-Authorization': getEmbyAuthHeader(token),
+      },
+    });
 
-  if (!res.ok) {
-    throw new Error(`取得 Emby 詳情失敗: HTTP ${res.status}`);
+    if (res.ok) {
+      item = await res.json();
+    }
+  } catch (err) {
+    logger.warn(`取得 Emby 項目 ${id} 失敗:`, err);
   }
 
-  const item = await res.json();
-  const poster = getEmbyPosterUrl(serverUrl, item.Id, token);
-  const isMovie = item.Type === 'Movie';
+  if (!item) {
+    // 找不到該 ID 時回傳空結果，讓播放端自動切換其他來源
+    return {
+      id,
+      title: '',
+      poster: '',
+      episodes: [],
+      episodes_titles: [],
+      episode_count: 0,
+      source: apiSite.key || 'emby',
+      source_name: apiSite.name || embyConfig.name || 'Emby 影庫',
+      source_tag: apiSite.tag || embyConfig.tag || '4K原畫',
+      year: 'unknown',
+      desc: '',
+      type_name: '電影',
+    };
+  }
 
-  if (isMovie) {
+  const poster = getEmbyPosterUrl(serverUrl, item.Id, token);
+  const isSeries = item.Type === 'Series';
+
+  // 非影集（電影、單集短片、獨立影片等）直接產生串流網址
+  if (!isSeries) {
     const streamUrl = getEmbyStreamUrl(serverUrl, item.Id, token);
     return {
       id: String(item.Id),
@@ -384,28 +440,51 @@ export async function getDetailFromEmby(
   }
 
   // 影集：取得所有分集
-  const episodesUrl = `${serverUrl}/Shows/${id}/Episodes?userId=${userId}&Fields=Overview,Path`;
-  const epRes = await fetch(episodesUrl, {
-    headers: {
-      Accept: 'application/json',
-      'X-Emby-Token': token,
-      'X-Emby-Authorization': getEmbyAuthHeader(token),
-    },
-  });
+  let rawEpisodes: EmbyEpisodeItem[] = [];
 
-  if (!epRes.ok) {
-    throw new Error(`取得 Emby 集數失敗: HTTP ${epRes.status}`);
+  // 1. 優先嘗試標準 Shows/{id}/Episodes 端點
+  try {
+    const episodesUrl = `${serverUrl}/Shows/${id}/Episodes?UserId=${encodeURIComponent(userId)}&Fields=Overview,Path`;
+    const epRes = await fetch(episodesUrl, {
+      headers: {
+        Accept: 'application/json',
+        'X-Emby-Token': token,
+        'X-Emby-Authorization': getEmbyAuthHeader(token),
+      },
+    });
+
+    if (epRes.ok) {
+      const epData = await epRes.json();
+      if (Array.isArray(epData.Items) && epData.Items.length > 0) {
+        rawEpisodes = epData.Items;
+      }
+    }
+  } catch (err) {
+    logger.warn(`Emby /Shows/${id}/Episodes 查詢失敗:`, err);
   }
 
-  interface EmbyEpisodeItem {
-    Id: string | number;
-    Name?: string;
-    IndexNumber?: number;
-    ParentIndexNumber?: number;
-  }
+  // 2. 若 Shows/{id}/Episodes 無分集或失敗，退回通用 Items 端點（支援多季或目錄嵌套）
+  if (rawEpisodes.length === 0) {
+    try {
+      const itemsUrl = `${serverUrl}/Users/${userId}/Items?ParentId=${id}&IncludeItemTypes=Episode&Recursive=true&Fields=Overview,Path`;
+      const itemsRes = await fetch(itemsUrl, {
+        headers: {
+          Accept: 'application/json',
+          'X-Emby-Token': token,
+          'X-Emby-Authorization': getEmbyAuthHeader(token),
+        },
+      });
 
-  const epData = await epRes.json();
-  const rawEpisodes: EmbyEpisodeItem[] = epData.Items || [];
+      if (itemsRes.ok) {
+        const itemsData = await itemsRes.json();
+        if (Array.isArray(itemsData.Items) && itemsData.Items.length > 0) {
+          rawEpisodes = itemsData.Items;
+        }
+      }
+    } catch (err) {
+      logger.warn(`Emby 通用 Items 查詢分集失敗:`, err);
+    }
+  }
 
   // 按季數與集數排序
   const sortedEpisodes = [...rawEpisodes].sort((a, b) => {

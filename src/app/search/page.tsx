@@ -440,7 +440,23 @@ function SearchPageClient() {
     const keyOrder: string[] = [];
 
     fuzzySearchResults.forEach((item) => {
-      const kind = getResultEpisodeCount(item) <= 1 ? 'movie' : 'tv';
+      const episodeCount = getResultEpisodeCount(item);
+      let kind: 'movie' | 'tv' = episodeCount > 1 ? 'tv' : 'movie';
+      if (kind === 'movie') {
+        const typeText = toDisplayLanguage(
+          `${item.type_name || ''} ${item.class || ''}`
+        ).toLowerCase();
+        if (
+          typeText.includes('劇') ||
+          typeText.includes('影集') ||
+          typeText.includes('連續劇') ||
+          typeText.includes('電視劇') ||
+          typeText.includes('動漫') ||
+          typeText.includes('綜藝')
+        ) {
+          kind = 'tv';
+        }
+      }
       const key = `${toSearchSimplified(item.title || '').replaceAll(' ', '')}-${
         item.year || 'unknown'
       }-${kind}`;

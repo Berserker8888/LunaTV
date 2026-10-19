@@ -40,7 +40,7 @@ describe('Emby 模組測試 (src/lib/emby.ts)', () => {
       const header = getEmbyAuthHeader();
       expect(header).toContain('MediaBrowser Client="LunaTV"');
       expect(header).toContain('Device="Web"');
-      expect(header).toContain('Version="3.7.3"');
+      expect(header).toContain('Version="3.7.4"');
       expect(header).not.toContain('Token=');
     });
 
@@ -325,6 +325,45 @@ describe('Emby 模組測試 (src/lib/emby.ts)', () => {
       expect(detail.episodes_titles[0]).toBe('第 1 集 第一集');
       expect(detail.episodes_titles[1]).toBe('第 2 集 第二集');
       expect(detail.episodes_titles[2]).toBe('S2 第 1 集 新任務');
+    });
+
+    it('getDetailFromEmby: 空影集或尚未發行的影集應安全回傳空集數而不崩潰', async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce(
+          createMockResponse({
+            AccessToken: 'token-123',
+            User: { Id: 'user-456' },
+          })
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            Id: '13840',
+            Name: '鐵拳教育',
+            Type: 'Series',
+            ProductionYear: 2026,
+            Overview: '即將上映',
+          })
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            Items: [],
+          })
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            Items: [],
+          })
+        );
+
+      const detail = await getDetailFromEmby(
+        mockApiSite,
+        '13840',
+        mockEmbyConfig
+      );
+      expect(detail.title).toBe('鐵拳教育');
+      expect(detail.episodes).toHaveLength(0);
+      expect(detail.episode_count).toBe(0);
+      expect(detail.type_name).toBe('影集');
     });
   });
 });

@@ -6,6 +6,15 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.7.4',
+    date: '2026-10-19',
+    content: `
+- 播放容錯：修復首選或直連片源無可播集數時導致整個播放頁面中斷崩潰的致命缺陷；新增全片源自動輪詢備用容錯機制（Failover），只要有任一可用片源即可自動無縫切換並彈出 Toast 提示。
+- 搜尋聚合：修復 Emby 影集或集數資訊不完整時被誤判為單集電影導致搜尋結果被拆成兩張卡片的問題，強化依類型名稱（影集／連續劇／動漫／綜藝）的聚合歸納。
+- Emby 優化：強化 Emby 影集分集端點雙重容錯，支援 API Key 自動解析 User ID，並修正優選測速失敗時盲選 0 集來源之回退機制。
+    `.trim(),
+  },
+  {
     version: 'v3.7.3',
     date: '2026-10-19',
     content: `

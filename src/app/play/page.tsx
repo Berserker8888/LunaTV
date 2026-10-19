@@ -823,7 +823,12 @@ function PlayPageClient() {
             `Direct load path for source: ${currentSource}, id: ${currentId}`
           );
           const cachedLookup = getCachedDetail(currentSource, currentId);
-          if (cachedLookup && !needsEpisodeHydration(cachedLookup.detail)) {
+          if (
+            cachedLookup &&
+            !needsEpisodeHydration(cachedLookup.detail) &&
+            cachedLookup.detail.episodes &&
+            cachedLookup.detail.episodes.length > 0
+          ) {
             // soft 過期也算命中：先 stale 起播，背景 refreshDetailInBackground
             // 會走 mergeDetailPreservingPlayback（不得直接 setDetail 換 URL）
             logger.debug(
@@ -840,17 +845,21 @@ function PlayPageClient() {
               currentSource,
               currentId
             );
-            if (currentDetailList.length > 0) {
+            if (
+              currentDetailList.length > 0 &&
+              currentDetailList[0].episodes &&
+              currentDetailList[0].episodes.length > 0
+            ) {
               detailData = currentDetailList[0];
               sourcesInfo = [detailData];
               setCachedDetail(currentSource, currentId, detailData);
             } else {
               logger.warn(
-                `Failed to fetch detail for direct load: ${currentSource}, ${currentId}`
+                `Failed to fetch playable detail for direct load: ${currentSource}, ${currentId}`
               );
-              // 直連詳情回空才改文案；本來就沒 source/id 的搜尋路徑不要說「詳情失敗」
+              // 直連詳情回空或無可播集數才改文案；本來就沒 source/id 的搜尋路徑不要說「詳情失敗」
               setLoadingStage('searching');
-              setLoadingMessage('🔍 詳情取得失敗，改以片名搜尋其他片源…');
+              setLoadingMessage('🔍 該片源無可播集數，改以片名搜尋其他片源…');
             }
           }
         }
@@ -1008,7 +1017,10 @@ function PlayPageClient() {
         }
 
         if (!detailData) {
-          detailData = sourcesInfo[0];
+          detailData =
+            sourcesInfo.find(
+              (s) => (s.episodes?.length || 0) > 0 || (s.episode_count || 0) > 0
+            ) || sourcesInfo[0];
           // 指定源和id且無需優選
           if (currentSource && currentId && !needPreferRef.current) {
             const target = sourcesInfo.find(
@@ -1030,7 +1042,12 @@ function PlayPageClient() {
                   toast('此片無 1080p 以上來源', 'info');
                 }
               } else {
-                detailData = sourcesInfo[0];
+                detailData =
+                  sourcesInfo.find(
+                    (s) =>
+                      (s.episodes?.length || 0) > 0 ||
+                      (s.episode_count || 0) > 0
+                  ) || sourcesInfo[0];
               }
             }
           }
@@ -1060,13 +1077,44 @@ function PlayPageClient() {
         if (
           detailData &&
           (needsEpisodeHydration(detailData) ||
-            targetInitialIndex >= detailData.episodes.length)
+            targetInitialIndex >= detailData.episodes.length ||
+            !detailData.episodes?.length)
         ) {
           setLoadingStage('fetching');
           setLoadingMessage('🎬 正在取得可播放集數...');
-          const playable = await ensurePlayableEpisodes(detailData);
+          let playable = await ensurePlayableEpisodes(detailData);
           if (!active) return;
-          if (!playable) {
+
+          // 核心容錯：若首選片源無法取得有效集數，自動輪詢嘗試備用片源
+          if (
+            (!playable || !playable.episodes?.length) &&
+            sourcesInfo.length > 1
+          ) {
+            logger.warn(
+              `片源 ${detailData.source_name || detailData.source} (id: ${detailData.id}) 無可用集數，嘗試備用片源...`
+            );
+            for (const fallback of sourcesInfo) {
+              if (
+                fallback.source === detailData.source &&
+                fallback.id === detailData.id
+              ) {
+                continue;
+              }
+              const candidate = await ensurePlayableEpisodes(fallback);
+              if (!active) return;
+              if (candidate && candidate.episodes?.length) {
+                playable = candidate;
+                detailData = candidate;
+                toast(
+                  `已自動切換至可用片源：${candidate.source_name || candidate.source}`,
+                  'info'
+                );
+                break;
+              }
+            }
+          }
+
+          if (!playable || !playable.episodes?.length) {
             setError('無法取得可播放的集數');
             setLoading(false);
             return;

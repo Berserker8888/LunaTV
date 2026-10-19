@@ -243,17 +243,25 @@ export function usePlaybackSourceSearch({
     }
 
     if (successful.length === 0) {
-      logger.warn('所有播放源測速都失敗，使用第一個播放源');
+      logger.warn('所有播放源測速都失敗，使用第一個可用播放源');
       // 背景仍試著補測，方便換源列表
       void runWithConcurrency(sources, 3, async (source) => {
         await runSpeedTestForSource(source, signal);
       });
-      return { source: sources[0] };
+      const fallback =
+        sources.find(
+          (s) => (s.episodes?.length || 0) > 0 || (s.episode_count || 0) > 0
+        ) || sources[0];
+      return { source: fallback };
     }
 
     const picked = selectSourceAfterSpeedTests(successful);
     if (!picked) {
-      return { source: sources[0] };
+      const fallback =
+        sources.find(
+          (s) => (s.episodes?.length || 0) > 0 || (s.episode_count || 0) > 0
+        ) || sources[0];
+      return { source: fallback };
     }
 
     // 未測完的也背景補測
