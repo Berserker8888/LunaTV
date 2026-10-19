@@ -20,6 +20,7 @@ export interface ApiSite {
   name: string;
   detail?: string;
   tag?: string;
+  type?: 'cms' | 'emby';
 }
 
 export interface LiveCfg {
@@ -387,6 +388,16 @@ async function getInitConfig(
     CustomCategories: [],
     LiveConfig: [],
     TitleAliases: [],
+    EmbyConfig: {
+      enabled: false,
+      serverUrl: '',
+      username: '',
+      password: '',
+      apiKey: '',
+      userId: '',
+      name: 'Emby 影庫',
+      tag: '4K原畫',
+    },
   };
 
   // 補充使用者資訊
@@ -696,6 +707,46 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   }
   setCachedCustomTitleAliases(adminConfig.TitleAliases);
 
+  if (adminConfig.EmbyConfig !== undefined) {
+    if (!isPlainRecord(adminConfig.EmbyConfig as unknown)) {
+      adminConfig.EmbyConfig = undefined;
+    } else {
+      adminConfig.EmbyConfig = {
+        enabled: adminConfig.EmbyConfig.enabled === true,
+        serverUrl:
+          typeof adminConfig.EmbyConfig.serverUrl === 'string'
+            ? adminConfig.EmbyConfig.serverUrl.trim()
+            : '',
+        username:
+          typeof adminConfig.EmbyConfig.username === 'string'
+            ? adminConfig.EmbyConfig.username.trim()
+            : '',
+        password:
+          typeof adminConfig.EmbyConfig.password === 'string'
+            ? adminConfig.EmbyConfig.password
+            : '',
+        apiKey:
+          typeof adminConfig.EmbyConfig.apiKey === 'string'
+            ? adminConfig.EmbyConfig.apiKey.trim()
+            : '',
+        userId:
+          typeof adminConfig.EmbyConfig.userId === 'string'
+            ? adminConfig.EmbyConfig.userId.trim()
+            : '',
+        name:
+          typeof adminConfig.EmbyConfig.name === 'string' &&
+          adminConfig.EmbyConfig.name.trim()
+            ? adminConfig.EmbyConfig.name.trim()
+            : 'Emby 影庫',
+        tag:
+          typeof adminConfig.EmbyConfig.tag === 'string' &&
+          adminConfig.EmbyConfig.tag.trim()
+            ? adminConfig.EmbyConfig.tag.trim()
+            : '4K原畫',
+      };
+    }
+  }
+
   adminConfig.UserConfig.Users = (
     adminConfig.UserConfig.Users as unknown[]
   ).flatMap((rawUser) => {
@@ -950,7 +1001,26 @@ export function selectAvailableApiSites(
   user: string | undefined,
   options?: { isLocalStorageMode?: boolean }
 ): ApiSite[] {
-  const allApiSites = config.SourceConfig.filter((s) => !s.disabled);
+  const allApiSites: ApiSite[] = config.SourceConfig.filter(
+    (s) => !s.disabled
+  ).map((s) => ({
+    key: s.key,
+    name: s.name,
+    api: s.api,
+    detail: s.detail,
+    tag: s.tag,
+    type: 'cms',
+  }));
+
+  if (config.EmbyConfig?.enabled && config.EmbyConfig.serverUrl) {
+    allApiSites.unshift({
+      key: 'emby',
+      name: config.EmbyConfig.name || 'Emby 影庫',
+      api: config.EmbyConfig.serverUrl,
+      tag: config.EmbyConfig.tag || '4K原畫',
+      type: 'emby',
+    });
+  }
 
   if (!user) {
     return allApiSites;
@@ -976,6 +1046,7 @@ export function selectAvailableApiSites(
         api: s.api,
         detail: s.detail,
         tag: s.tag,
+        type: s.type,
       }));
   }
 
@@ -1000,6 +1071,7 @@ export function selectAvailableApiSites(
         api: s.api,
         detail: s.detail,
         tag: s.tag,
+        type: s.type,
       }));
   }
 

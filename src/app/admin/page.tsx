@@ -3,6 +3,7 @@
 import {
   Database,
   FileText,
+  Film,
   FolderOpen,
   Settings,
   Tv,
@@ -30,6 +31,7 @@ import { buttonStyles } from './components/buttonStyles';
 import { CategoryConfig } from './components/CategoryConfig';
 import { CollapsibleTab } from './components/CollapsibleTab';
 import { ConfigFileComponent } from './components/ConfigFileComponent';
+import { EmbyConfigComponent } from './components/EmbyConfigComponent';
 import { LiveSourceConfig } from './components/LiveSourceConfig';
 import { useLoadingState } from './components/Loading';
 import { PlayStatsPanel } from './components/PlayStatsPanel';
@@ -48,6 +50,7 @@ function AdminPageClient() {
   const [expandedTabs, setExpandedTabs] = useState<{ [key: string]: boolean }>({
     userConfig: false,
     videoSource: false,
+    embyConfig: false,
     liveSource: false,
     siteConfig: false,
     categoryConfig: false,
@@ -269,6 +272,21 @@ function AdminPageClient() {
               onToggle={() => toggleTab('videoSource')}
             >
               <VideoSourceConfig config={config} refreshConfig={fetchConfig} />
+            </CollapsibleTab>
+
+            {/* Emby 影庫設定標籤 */}
+            <CollapsibleTab
+              title='Emby 影庫設定'
+              icon={
+                <Film size={20} className='text-zinc-600 dark:text-zinc-400' />
+              }
+              isExpanded={expandedTabs.embyConfig}
+              onToggle={() => toggleTab('embyConfig')}
+            >
+              <EmbyConfigComponent
+                config={config}
+                refreshConfig={fetchConfig}
+              />
             </CollapsibleTab>
 
             {/* 直播源設定標籤 */}

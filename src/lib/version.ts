@@ -6,6 +6,14 @@ export interface ChangelogItem {
 
 export const CHANGELOGS: ChangelogItem[] = [
   {
+    version: 'v3.7.3',
+    date: '2026-10-19',
+    content: `
+- 播放源：支援 Emby 公費服與私人影庫播放源接入，支援自動帳密認證、聚合搜尋、選集直連及外部播放器免轉碼播放。
+- 後台：新增「Emby 影庫設定」專屬管理面板，支援一鍵連線測試、開關狀態控制與專屬播放源標籤自訂。
+    `.trim(),
+  },
+  {
     version: 'v3.7.2',
     date: '2026-10-15',
     content: `

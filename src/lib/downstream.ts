@@ -16,6 +16,7 @@ import {
 import { cleanHtmlTags } from '@/lib/utils';
 
 import { toSearchSimplified } from './chinese';
+import { getDetailFromEmby, searchFromEmby } from './emby';
 import { getMainlandSearchQueries } from './mainland-search';
 import { deduplicateRequest } from './request-dedupe';
 import { isFuzzyMatch } from './searchEngine';
@@ -297,6 +298,9 @@ export async function searchFromApi(
   precomputedVariants?: string[],
   signal?: AbortSignal
 ): Promise<SearchResult[]> {
+  if (apiSite.type === 'emby') {
+    return searchFromEmby(apiSite, query, signal);
+  }
   try {
     const apiBaseUrl = apiSite.api;
     const plannedVariants =
@@ -446,6 +450,9 @@ async function fetchDetailFromApi(
   apiSite: ApiSite,
   id: string
 ): Promise<SearchResult> {
+  if (apiSite.type === 'emby') {
+    return getDetailFromEmby(apiSite, id);
+  }
   if (apiSite.detail) {
     return handleSpecialSourceDetail(id, apiSite);
   }
